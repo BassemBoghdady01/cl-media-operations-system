@@ -1,5 +1,5 @@
 /**
- * CL — Database Type Stubs
+ * EZ Marketing Agency — Database Type Stubs
  *
  * For full type safety, generate this file from Supabase CLI:
  *   npx supabase gen types typescript --project-id YOUR_PROJECT_ID > src/lib/database.types.ts

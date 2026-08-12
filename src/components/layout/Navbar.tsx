@@ -7,7 +7,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { timeAgo, getInitials } from '../../lib/utils'
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
-  '/app/dashboard': { title: 'Dashboard', subtitle: 'CL — Your media operations command center' },
+  '/app/dashboard': { title: 'Dashboard', subtitle: 'EZ Marketing Agency — Your media operations command center' },
   '/app/clients': { title: 'Clients', subtitle: 'Manage client relationships and portfolios' },
   '/app/pipeline': { title: 'Video Pipeline', subtitle: 'Track every video from idea to posted' },
   '/app/calendar': { title: 'Content Calendar', subtitle: 'Schedule and plan content delivery' },
@@ -31,7 +31,7 @@ export default function Navbar() {
   const [searchFocused, setSearchFocused] = useState(false)
 
   const pathKey = Object.keys(pageTitles).find((k) => location.pathname.startsWith(k)) ?? '/app/dashboard'
-  const { title, subtitle } = pageTitles[pathKey] ?? { title: 'CL', subtitle: '' }
+  const { title, subtitle } = pageTitles[pathKey] ?? { title: 'EZ Marketing Agency', subtitle: '' }
   const unread = mockNotifications.filter((n) => !n.isRead)
 
   const notifIcons: Record<string, string> = {

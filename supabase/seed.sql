@@ -1,5 +1,5 @@
 -- ============================================================
--- CL — Seed Data for Supabase
+-- EZ Marketing Agency — Seed Data for Supabase
 -- Run AFTER schema.sql + rls-policies.sql + storage.sql
 --
 -- IMPORTANT:
@@ -16,8 +16,8 @@
 INSERT INTO agencies (id, name, email, plan, status)
 VALUES (
   'a1000000-0000-0000-0000-000000000001',
-  'CL Agency',
-  'hello@cl.agency',
+  'EZ Marketing Agency',
+  'hello@ezmarketing.agency',
   'growth',
   'active'
 ) ON CONFLICT (id) DO NOTHING;
@@ -33,11 +33,11 @@ VALUES (
 
 INSERT INTO profiles (id, agency_id, full_name, email, role, color)
 VALUES
-  ('REPLACE-WITH-ADMIN-UUID',      'a1000000-0000-0000-0000-000000000001', 'Agency Admin',    'admin@cl.agency',     'admin',           '#3B82F6'),
-  ('REPLACE-WITH-MANAGER-UUID',    'a1000000-0000-0000-0000-000000000001', 'Project Manager', 'manager@cl.agency',   'project_manager', '#8B5CF6'),
-  ('REPLACE-WITH-EDITOR-UUID',     'a1000000-0000-0000-0000-000000000001', 'Senior Editor',   'editor@cl.agency',    'editor',          '#06B6D4'),
-  ('REPLACE-WITH-ACCOUNTANT-UUID', 'a1000000-0000-0000-0000-000000000001', 'Accountant',      'finance@cl.agency',   'accountant',      '#F59E0B'),
-  ('REPLACE-WITH-CLIENT-UUID',     'a1000000-0000-0000-0000-000000000001', 'Client Portal',   'client@cl.agency',    'client',          '#10B981')
+  ('REPLACE-WITH-ADMIN-UUID',      'a1000000-0000-0000-0000-000000000001', 'Agency Admin',    'admin@ezmarketing.agency',     'admin',           '#3B82F6'),
+  ('REPLACE-WITH-MANAGER-UUID',    'a1000000-0000-0000-0000-000000000001', 'Project Manager', 'manager@ezmarketing.agency',   'project_manager', '#8B5CF6'),
+  ('REPLACE-WITH-EDITOR-UUID',     'a1000000-0000-0000-0000-000000000001', 'Senior Editor',   'editor@ezmarketing.agency',    'editor',          '#06B6D4'),
+  ('REPLACE-WITH-ACCOUNTANT-UUID', 'a1000000-0000-0000-0000-000000000001', 'Accountant',      'finance@ezmarketing.agency',   'accountant',      '#F59E0B'),
+  ('REPLACE-WITH-CLIENT-UUID',     'a1000000-0000-0000-0000-000000000001', 'Client Portal',   'client@ezmarketing.agency',    'client',          '#10B981')
 ON CONFLICT (id) DO NOTHING;
 */
 

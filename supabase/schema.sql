@@ -1,5 +1,5 @@
 -- ============================================================
--- CL — Media Operations System
+-- EZ Marketing Agency — Media Operations System
 -- Supabase / PostgreSQL Schema
 -- Version: 1.0.0
 --

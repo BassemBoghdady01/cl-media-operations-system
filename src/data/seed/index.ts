@@ -1,5 +1,5 @@
 /**
- * CL — Seed Data
+ * EZ Marketing Agency — Seed Data
  *
  * This directory contains all sample/presentation data.
  * These files exist purely for the initial client presentation.

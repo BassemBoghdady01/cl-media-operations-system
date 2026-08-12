@@ -188,7 +188,7 @@ export default function ClientPortal() {
                 <Zap className="w-5 h-5 text-white" strokeWidth={2.5} />
               </div>
               <div>
-                <div className="text-[13px] font-bold text-white">CL</div>
+                <div className="text-[13px] font-bold text-white whitespace-nowrap">EZ Marketing Agency</div>
                 <div className="text-[10px] text-slate-600">Client Portal</div>
               </div>
             </div>

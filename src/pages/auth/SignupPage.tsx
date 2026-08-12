@@ -21,7 +21,7 @@ export default function SignupPage() {
 
   const handleFinish = async () => {
     setLoading(true)
-    await login(form.email || 'admin@cl.agency', form.password || 'dactrah123')
+    await login(form.email || 'admin@ezmarketing.agency', form.password || 'dactrah123')
     setTimeout(() => navigate('/app/dashboard'), 600)
   }
 
@@ -43,9 +43,9 @@ export default function SignupPage() {
         <Link to="/" className="flex items-center gap-2.5 mb-8">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-white text-base"
             style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-            CL
+            EZ
           </div>
-          <span className="text-[15px] font-bold text-white">CL</span>
+          <span className="text-[15px] font-bold text-white">EZ Marketing Agency</span>
         </Link>
 
         {/* Progress */}

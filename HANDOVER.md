@@ -1,4 +1,4 @@
-# CL — Media Operations System
+# EZ Marketing Agency — Media Operations System
 ## Client Handover Document
 
 ---
@@ -156,6 +156,58 @@ UPDATE profiles
 SET agency_id = 'your-agency-uuid', role = 'editor', full_name = 'Their Name'
 WHERE email = 'their@email.com';
 ```
+
+---
+
+## Email Domain Migration (`cl.agency` → `ezmarketing.agency`)
+
+The rebrand changed the agency email domain. This affects **only** the
+bare-username login shorthand — typing `admin` instead of `admin@…`.
+
+**Who is affected**
+
+| How the user signs in | Before rebrand | After rebrand | Broken? |
+|---|---|---|---|
+| Full email (`omar@cl.agency`) | used verbatim | used verbatim | No |
+| Full email (`omar@ezmarketing.agency`) | used verbatim | used verbatim | No |
+| Bare username (`omar`) | → `omar@cl.agency` | → `omar@ezmarketing.agency`, falls back to `omar@cl.agency` | No |
+
+Supabase Auth records are **not** renamed by the rebrand. A user whose auth
+record is `omar@cl.agency` keeps that address until you migrate it below.
+
+**Backward compatibility (currently ON)**
+
+`APP_CONFIG.auth.legacyEmailDomain` is set to `'cl.agency'`. On a bare-username
+login the app tries the new domain first, and retries the legacy domain only if
+Supabase rejects the credentials (HTTP 400). Rate limits, network errors, and
+unconfirmed-email errors are *not* retried. Cost when a legacy user signs in:
+one extra failed auth call.
+
+**To migrate and turn the fallback off**
+
+1. Inventory the accounts still on the old domain:
+   ```sql
+   SELECT id, email FROM auth.users WHERE email LIKE '%@cl.agency';
+   ```
+2. Update each address in Supabase Dashboard → Authentication → Users → Edit,
+   or via the Admin API. Keep the local part; swap only the domain.
+3. Update the matching profile rows:
+   ```sql
+   UPDATE profiles
+   SET email = REPLACE(email, '@cl.agency', '@ezmarketing.agency')
+   WHERE email LIKE '%@cl.agency';
+   ```
+4. Verify nothing remains:
+   ```sql
+   SELECT COUNT(*) FROM auth.users WHERE email LIKE '%@cl.agency';  -- expect 0
+   ```
+5. Set `legacyEmailDomain: null` in [`src/config/app.ts`](src/config/app.ts) and
+   delete the fallback branch in `login()` in
+   [`src/contexts/AuthContext.tsx`](src/contexts/AuthContext.tsx).
+
+> Changing a user's email in Supabase may trigger a confirmation email
+> depending on your Auth settings. Use the Admin API with
+> `email_confirm: true` to migrate without prompting users.
 
 ---
 

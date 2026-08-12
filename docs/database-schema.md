@@ -1,4 +1,4 @@
-# CL — Database Schema
+# EZ Marketing Agency — Database Schema
 # PostgreSQL / Supabase
 
 ## Design Principles

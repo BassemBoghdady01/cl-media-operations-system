@@ -78,7 +78,7 @@ export default function ClientDashboard() {
         <div className="flex items-center gap-3 mb-3">
           <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white"
             style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-            {getInitials(user?.name ?? 'CL')}
+            {getInitials(user?.name ?? 'EZ')}
           </div>
           <div>
             <div className="text-base font-black text-white">

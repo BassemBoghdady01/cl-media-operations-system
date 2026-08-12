@@ -164,7 +164,7 @@ const features = [
 // ─── Testimonials ─────────────────────────────────────────────────────────────
 
 const testimonials = [
-  { name: 'Mona Khalil', role: 'Head of Content, TechVision', quote: 'We replaced 6 tools with CL. The pipeline alone saves us 10 hours a week.', avatar: 'MK' },
+  { name: 'Mona Khalil', role: 'Head of Content, TechVision', quote: 'We replaced 6 tools with EZ Marketing Agency. The pipeline alone saves us 10 hours a week.', avatar: 'MK' },
   { name: 'Farida Hassan', role: 'Brand Manager, Nile Brands', quote: 'Finally, I can see exactly where my video is without messaging anyone.', avatar: 'FH' },
   { name: 'Karim Nasser', role: 'Founder, Cairo Eats', quote: 'The client portal changed how we work with our agency. So much cleaner.', avatar: 'KN' },
 ]
@@ -186,9 +186,9 @@ export default function LandingPage() {
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center font-black text-white text-sm"
             style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-            CL
+            EZ
           </div>
-          <span className="text-[15px] font-bold text-white">CL</span>
+          <span className="text-[15px] font-bold text-white">EZ Marketing Agency</span>
           <span className="hidden sm:block text-[10px] text-slate-600 pl-2 border-l border-slate-800">Media Operations System</span>
         </div>
 
@@ -256,7 +256,7 @@ export default function LandingPage() {
               </h1>
 
               <p className="text-slate-400 text-lg leading-relaxed mb-8 max-w-lg">
-                CL is the operations system for media production companies. Manage your entire video workflow — pipeline, clients, team, AI, billing — in one place.
+                EZ Marketing Agency is the operations system for media production companies. Manage your entire video workflow — pipeline, clients, team, AI, billing — in one place.
               </p>
 
               <div className="flex flex-wrap gap-3 mb-10">
@@ -360,7 +360,7 @@ export default function LandingPage() {
               One system. Every operation. Zero chaos.
             </h2>
             <p className="text-slate-400 text-lg max-w-2xl mx-auto mb-8">
-              CL replaces your scattered tools with a single, purpose-built platform for media production companies. From the first video idea to the final posted content.
+              EZ Marketing Agency replaces your scattered tools with a single, purpose-built platform for media production companies. From the first video idea to the final posted content.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
               {['Replace WhatsApp', 'Replace Google Sheets', 'Replace Trello', 'Replace Dropbox chaos', 'Replace Excel invoices'].map((item) => (
@@ -439,7 +439,7 @@ export default function LandingPage() {
               <span className="text-xs font-bold text-purple-400 uppercase tracking-widest mb-3 block">AI Studio</span>
               <h2 className="text-3xl lg:text-4xl font-black text-white mb-4">Content generation that actually understands your client</h2>
               <p className="text-slate-400 text-base mb-6 leading-relaxed">
-                Enter the company name, industry, and goal — CL generates reel ideas, full scripts, hooks, captions, and campaign angles. Ready to use, or use as a starting point.
+                Enter the company name, industry, and goal — EZ Marketing Agency generates reel ideas, full scripts, hooks, captions, and campaign angles. Ready to use, or use as a starting point.
               </p>
               <div className="space-y-3 mb-8">
                 {[
@@ -650,7 +650,7 @@ export default function LandingPage() {
               Ready to run your agency<br />like a machine?
             </h2>
             <p className="text-slate-400 text-lg mb-8">
-              Join media production companies that replaced their chaos with CL.
+              Join media production companies that replaced their chaos with EZ Marketing Agency.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
               <Link to="/login" className="btn-primary text-base py-4 px-8">
@@ -670,8 +670,8 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-white text-xs"
-              style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>CL</div>
-            <span className="text-sm font-bold text-white">CL</span>
+              style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>EZ</div>
+            <span className="text-sm font-bold text-white">EZ Marketing Agency</span>
             <span className="text-xs text-slate-600">Media Operations System</span>
           </div>
           <div className="flex gap-6 text-xs text-slate-500">
@@ -679,7 +679,7 @@ export default function LandingPage() {
               <a key={l} href="#" className="hover:text-slate-300 transition-colors">{l}</a>
             ))}
           </div>
-          <p className="text-xs text-slate-600">© 2025 CL. All rights reserved.</p>
+          <p className="text-xs text-slate-600">© 2025 EZ Marketing Agency. All rights reserved.</p>
         </div>
       </footer>
     </div>

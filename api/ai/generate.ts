@@ -1,5 +1,5 @@
 /**
- * CL — AI Generation Serverless Function
+ * EZ Marketing Agency — AI Generation Serverless Function
  * Vercel Edge Function: POST /api/ai/generate
  *
  * This function runs SERVER-SIDE on Vercel.

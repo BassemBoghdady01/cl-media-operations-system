@@ -1,4 +1,4 @@
-# CL — Client Presentation Checklist
+# EZ Marketing Agency — Client Presentation Checklist
 
 Use this during live demos or client walkthroughs.
 

@@ -40,33 +40,33 @@ export const seedPackages: Package[] = [
 
 export const seedInvoices: Invoice[] = [
   {
-    id: 'inv1', invoiceNumber: 'CL-2024-0041', clientId: 'c1', clientName: 'Nile Brands Co.',
+    id: 'inv1', invoiceNumber: 'EZ-2024-0041', clientId: 'c1', clientName: 'Nile Brands Co.',
     amount: 4500, tax: 405, discount: 0, total: 4905, status: 'paid',
     dueDate: '2024-05-01', issuedDate: '2024-04-25', paidDate: '2024-04-28',
   },
   {
-    id: 'inv2', invoiceNumber: 'CL-2024-0042', clientId: 'c2', clientName: 'Cairo Eats',
+    id: 'inv2', invoiceNumber: 'EZ-2024-0042', clientId: 'c2', clientName: 'Cairo Eats',
     amount: 2800, tax: 252, discount: 200, total: 2852, status: 'paid',
     dueDate: '2024-05-01', issuedDate: '2024-04-25', paidDate: '2024-04-30',
   },
   {
-    id: 'inv3', invoiceNumber: 'CL-2024-0043', clientId: 'c3', clientName: 'TechVision Egypt',
+    id: 'inv3', invoiceNumber: 'EZ-2024-0043', clientId: 'c3', clientName: 'TechVision Egypt',
     amount: 7200, tax: 648, discount: 0, total: 7848, status: 'sent',
     dueDate: '2024-05-10', issuedDate: '2024-05-01',
   },
   {
-    id: 'inv4', invoiceNumber: 'CL-2024-0044', clientId: 'c4', clientName: 'Desert Palm Hotel',
+    id: 'inv4', invoiceNumber: 'EZ-2024-0044', clientId: 'c4', clientName: 'Desert Palm Hotel',
     amount: 2800, tax: 252, discount: 0, total: 3052, status: 'overdue',
     dueDate: '2024-05-01', issuedDate: '2024-04-24',
     notes: 'Second reminder sent on May 3rd.',
   },
   {
-    id: 'inv5', invoiceNumber: 'CL-2024-0045', clientId: 'c5', clientName: 'FitZone Gym',
+    id: 'inv5', invoiceNumber: 'EZ-2024-0045', clientId: 'c5', clientName: 'FitZone Gym',
     amount: 3800, tax: 342, discount: 300, total: 3842, status: 'sent',
     dueDate: '2024-05-12', issuedDate: '2024-05-02',
   },
   {
-    id: 'inv6', invoiceNumber: 'CL-2024-0040', clientId: 'c1', clientName: 'Nile Brands Co.',
+    id: 'inv6', invoiceNumber: 'EZ-2024-0040', clientId: 'c1', clientName: 'Nile Brands Co.',
     amount: 4500, tax: 405, discount: 0, total: 4905, status: 'paid',
     dueDate: '2024-04-01', issuedDate: '2024-03-25', paidDate: '2024-03-31',
   },

@@ -30,6 +30,7 @@ import ClientBookings from './pages/client/ClientBookings'
 import ClientAssets from './pages/client/ClientAssets'
 import ClientPackage from './pages/client/ClientPackage'
 import ClientInvoices from './pages/client/ClientInvoices'
+import DebugAuthPage from './pages/debug/DebugAuthPage'
 
 export default function App() {
   return (
@@ -80,6 +81,9 @@ export default function App() {
               </Route>
             </Route>
           </Route>
+
+          {/* ── Debug / diagnostics (public — remove in production) ── */}
+          <Route path="/debug/auth" element={<DebugAuthPage />} />
 
           {/* ── Legacy redirects ────────────────────────────────────── */}
           <Route path="/portal" element={<Navigate to="/client" replace />} />

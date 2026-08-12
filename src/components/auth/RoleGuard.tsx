@@ -1,6 +1,9 @@
 /**
  * RoleGuard — protects routes by user role.
- * Redirects unauthorized users to their home route.
+ *
+ * IMPORTANT: Always checks isLoading before redirecting.
+ * Without this check, the guard would redirect to /login while auth is still
+ * being restored from the session — causing a false "not authorized" blank page.
  */
 
 import { Navigate, Outlet } from 'react-router-dom'
@@ -14,12 +17,16 @@ interface RoleGuardProps {
 }
 
 export default function RoleGuard({ allowedRoles }: RoleGuardProps) {
-  const { role, user } = useAuth()
+  const { role, isLoading } = useAuth()
+
+  // While auth is resolving, render nothing — ProtectedRoute already shows the spinner.
+  // Never redirect during load; doing so causes a blank screen / redirect loop.
+  if (isLoading) return null
 
   if (!role) return <Navigate to={APP_CONFIG.routes.login} replace />
 
   if (!allowedRoles.includes(role)) {
-    // Redirect to role-appropriate home
+    // Redirect to role-appropriate home rather than a blank page
     if (role === 'client') return <Navigate to={APP_CONFIG.routes.clientHome} replace />
     if (role === 'accountant') return <Navigate to={APP_CONFIG.routes.accountantHome} replace />
     return <Navigate to={APP_CONFIG.routes.adminHome} replace />
@@ -37,14 +44,26 @@ export function AdminRoute() {
 export function TeamRoute() {
   return (
     <RoleGuard
-      allowedRoles={['super_admin', 'agency_admin', 'project_manager', 'editor', 'social_manager', 'creator', 'accountant']}
+      allowedRoles={[
+        'super_admin',
+        'agency_admin',
+        'project_manager',
+        'editor',
+        'social_manager',
+        'creator',
+        'accountant',
+      ]}
     />
   )
 }
 
 /** Convenience: Client portal only */
 export function ClientRoute() {
-  const { role } = useAuth()
+  const { role, isLoading } = useAuth()
+
+  // Wait for auth to resolve before making routing decisions
+  if (isLoading) return null
+
   if (role && role !== 'client') {
     return <Navigate to={APP_CONFIG.routes.adminHome} replace />
   }

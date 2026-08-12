@@ -1,5 +1,5 @@
 /**
- * CL — Supabase Client
+ * EZ Marketing Agency — Supabase Client
  *
  * This module exports a singleton Supabase client.
  * It is only active when VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are configured.

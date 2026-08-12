@@ -1,4 +1,4 @@
-# CL — Demo / Seed Data Removal Guide
+# EZ Marketing Agency — Demo / Seed Data Removal Guide
 
 This document explains where all seed/demo data lives, how to disable it, and how to switch to real Supabase data.
 
@@ -23,8 +23,8 @@ In seed mode:
 | `src/data/seed/clients.ts` | 6 sample clients (Nile Brands, Cairo Eats, etc.) |
 | `src/data/seed/videos.ts` | 11 sample videos across different statuses |
 | `src/data/seed/projects.ts` | 4 sample projects |
-| `src/data/seed/billing.ts` | Sample packages + invoices with CL invoice numbers |
-| `src/data/seed/team.ts` | 5 team members with `@cl.agency` emails |
+| `src/data/seed/billing.ts` | Sample packages + invoices with EZ invoice numbers |
+| `src/data/seed/team.ts` | 5 team members with `@ezmarketing.agency` emails |
 | `src/data/seed/tasks.ts` | 8 sample tasks |
 | `src/data/seed/assets.ts` | 8 sample brand assets |
 | `src/data/seed/bookings.ts` | 2 sample shoot bookings |
@@ -38,10 +38,10 @@ These credentials are in the `SEED_USERS` constant — NOT shown on the login pa
 
 | Username | Password | Role | Redirect |
 |----------|----------|------|----------|
-| `dactrah_admin` or `admin@cl.agency` | `dactrah123` | Admin | `/app/dashboard` |
-| `dactrah_team` or `team@cl.agency` | `dactrah123` | Editor | `/app/pipeline` |
-| `dactrah_client` or `client@cl.agency` | `dactrah123` | Client | `/client` |
-| `dactrah_accountant` or `finance@cl.agency` | `dactrah123` | Accountant | `/app/billing` |
+| `dactrah_admin` or `admin@ezmarketing.agency` | `dactrah123` | Admin | `/app/dashboard` |
+| `dactrah_team` or `team@ezmarketing.agency` | `dactrah123` | Editor | `/app/pipeline` |
+| `dactrah_client` or `client@ezmarketing.agency` | `dactrah123` | Client | `/client` |
+| `dactrah_accountant` or `finance@ezmarketing.agency` | `dactrah123` | Accountant | `/app/billing` |
 
 ---
 

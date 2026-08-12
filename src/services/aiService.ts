@@ -1,5 +1,5 @@
 /**
- * CL — AI Service
+ * EZ Marketing Agency — AI Service
  *
  * Calls the Vercel serverless function at /api/ai/generate.
  * Falls back gracefully when AI is not configured.

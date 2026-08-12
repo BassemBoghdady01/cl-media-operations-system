@@ -16,7 +16,7 @@ export default function ProtectedRoute() {
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 rounded-2xl flex items-center justify-center font-black text-white text-lg"
             style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-            CL
+            EZ
           </div>
           <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
         </div>

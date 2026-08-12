@@ -1,5 +1,5 @@
 /**
- * CL — Storage Service
+ * EZ Marketing Agency — Storage Service
  *
  * Handles file uploads to Supabase Storage.
  * All functions gracefully handle missing Supabase config (seed mode).

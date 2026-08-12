@@ -1,5 +1,5 @@
 -- ============================================================
--- CL — Supabase Storage Buckets & Policies
+-- EZ Marketing Agency — Supabase Storage Buckets & Policies
 -- Run AFTER schema.sql and rls-policies.sql
 -- ============================================================
 

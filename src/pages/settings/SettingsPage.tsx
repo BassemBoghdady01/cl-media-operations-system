@@ -110,9 +110,9 @@ export default function SettingsPage() {
               <Section title="Agency Information" desc="Your public agency profile details">
                 <div className="flex items-center gap-5 mb-6 p-5 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
                   <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black text-white flex-shrink-0"
-                    style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>CL</div>
+                    style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>EZ</div>
                   <div>
-                    <p className="text-sm font-semibold text-white mb-1">CL</p>
+                    <p className="text-sm font-semibold text-white mb-1">EZ Marketing Agency</p>
                     <button className="btn-secondary text-xs py-1.5 px-3">
                       <Upload className="w-3 h-3" /> Upload Logo
                     </button>
@@ -120,10 +120,10 @@ export default function SettingsPage() {
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   {[
-                    { label: 'Agency Name', value: 'CL', type: 'text' },
-                    { label: 'Email', value: 'contact@cl.agency', type: 'email' },
+                    { label: 'Agency Name', value: 'EZ Marketing Agency', type: 'text' },
+                    { label: 'Email', value: 'contact@ezmarketing.agency', type: 'email' },
                     { label: 'Phone', value: '+20 100 000 0000', type: 'tel' },
-                    { label: 'Website', value: 'cl.agency', type: 'text' },
+                    { label: 'Website', value: 'ezmarketing.agency', type: 'text' },
                     { label: 'Country', value: 'Egypt', type: 'text' },
                     { label: 'City', value: 'Cairo', type: 'text' },
                   ].map(({ label, value, type }) => (
@@ -136,7 +136,7 @@ export default function SettingsPage() {
               </Section>
               <Section title="Agency Description">
                 <textarea className="input resize-none h-24 text-sm"
-                  defaultValue="CL is a premium content production agency specializing in video, reels, and social media content for brands across Egypt and MENA." />
+                  defaultValue="EZ Marketing Agency is a premium content production agency specializing in video, reels, and social media content for brands across Egypt and MENA." />
               </Section>
             </motion.div>
           )}
@@ -172,7 +172,7 @@ export default function SettingsPage() {
 
           {activeTab === 'integrations' && (
             <motion.div key="integrations" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="glass-blue rounded-2xl p-6">
-              <Section title="Platform Integrations" desc="Connect CL to your tools and social platforms">
+              <Section title="Platform Integrations" desc="Connect EZ Marketing Agency to your tools and social platforms">
                 <div className="space-y-3">
                   {integrations.map(({ name, desc, icon, connected, soon }) => (
                     <div key={name}
@@ -335,11 +335,11 @@ export default function SettingsPage() {
                 </button>
                 <div className="space-y-2">
                   {[
-                    { name: 'Bassem Mahmoud', email: 'bassem@cl.agency', role: 'Admin', you: true },
-                    { name: 'Layla Kamal', email: 'layla@cl.agency', role: 'Project Manager', you: false },
-                    { name: 'Omar Tarek', email: 'omar@cl.agency', role: 'Video Editor', you: false },
-                    { name: 'Nour Ibrahim', email: 'nour@cl.agency', role: 'Video Editor', you: false },
-                    { name: 'Ahmed Samir', email: 'ahmed@cl.agency', role: 'Social Media Manager', you: false },
+                    { name: 'Bassem Mahmoud', email: 'bassem@ezmarketing.agency', role: 'Admin', you: true },
+                    { name: 'Layla Kamal', email: 'layla@ezmarketing.agency', role: 'Project Manager', you: false },
+                    { name: 'Omar Tarek', email: 'omar@ezmarketing.agency', role: 'Video Editor', you: false },
+                    { name: 'Nour Ibrahim', email: 'nour@ezmarketing.agency', role: 'Video Editor', you: false },
+                    { name: 'Ahmed Samir', email: 'ahmed@ezmarketing.agency', role: 'Social Media Manager', you: false },
                   ].map(({ name, email, role, you }) => (
                     <div key={email}
                       className="flex items-center gap-3 p-3.5 rounded-xl"

@@ -21,7 +21,7 @@ export const seedNotifications: Notification[] = [
   },
   {
     id: 'n4', userId: 'tm1', type: 'invoice', title: 'Invoice Overdue',
-    message: 'Invoice CL-2024-0044 for Desert Palm Hotel is 5 days overdue ($3,052).',
+    message: 'Invoice EZ-2024-0044 for Desert Palm Hotel is 5 days overdue ($3,052).',
     isRead: false, createdAt: '2024-05-05T08:00:00', link: '/app/billing',
     clientName: 'Desert Palm Hotel',
   },
@@ -56,7 +56,7 @@ export const seedActivity: ActivityItem[] = [
   },
   {
     id: 'act4', userId: 'tm1', userName: 'Bassem Mahmoud', userColor: '#3B82F6',
-    action: 'created invoice', target: 'CL-2024-0045 ($3,842)',
+    action: 'created invoice', target: 'EZ-2024-0045 ($3,842)',
     targetType: 'invoice', createdAt: '2024-05-02T11:00:00', clientName: 'FitZone Gym',
   },
   {

@@ -1,8 +1,8 @@
-# CL — Supabase Setup Guide
+# EZ Marketing Agency — Supabase Setup Guide
 
 ## Overview
 
-This folder contains all SQL files needed to set up the CL Media Operations System backend.
+This folder contains all SQL files needed to set up the EZ Marketing Agency — Media Operations System backend.
 
 ## Run Order
 
@@ -42,18 +42,18 @@ Create users through one of these methods:
 #### Option A: Supabase Dashboard (Recommended for setup)
 1. Go to **Authentication → Users → Invite User**
 2. Create these users:
-   - `admin@cl.agency` — role: admin
-   - `manager@cl.agency` — role: project_manager
-   - `editor@cl.agency` — role: editor
-   - `finance@cl.agency` — role: accountant
-   - `client@cl.agency` — role: client (for portal testing)
+   - `admin@ezmarketing.agency` — role: admin
+   - `manager@ezmarketing.agency` — role: project_manager
+   - `editor@ezmarketing.agency` — role: editor
+   - `finance@ezmarketing.agency` — role: accountant
+   - `client@ezmarketing.agency` — role: client (for portal testing)
 
 #### Option B: Supabase Auth API (Programmatic)
 ```bash
 curl -X POST 'https://YOUR_PROJECT.supabase.co/auth/v1/admin/users' \
   -H 'apikey: YOUR_SERVICE_ROLE_KEY' \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@cl.agency","password":"your-secure-password","email_confirm":true}'
+  -d '{"email":"admin@ezmarketing.agency","password":"your-secure-password","email_confirm":true}'
 ```
 
 #### Option C: Sign Up via App

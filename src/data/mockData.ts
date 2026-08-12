@@ -1,5 +1,5 @@
 /**
- * CL — Mock/Seed Data Re-export
+ * EZ Marketing Agency — Mock/Seed Data Re-export
  *
  * This file re-exports everything from src/data/seed/ for backward compatibility.
  * All components that import from here will continue to work.

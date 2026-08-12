@@ -64,10 +64,10 @@ export default function ClientLayout() {
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center font-black text-white text-sm"
               style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-              CL
+              EZ
             </div>
             <div className="hidden sm:block">
-              <div className="text-[13px] font-bold text-white leading-tight">CL</div>
+              <div className="text-[13px] font-bold text-white leading-tight whitespace-nowrap">EZ Marketing Agency</div>
               <div className="text-[9px] text-slate-600 leading-tight">Client Portal</div>
             </div>
           </div>
@@ -107,7 +107,7 @@ export default function ClientLayout() {
           <div className="flex items-center gap-2 cursor-pointer group">
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
               style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-              {getInitials(user?.name ?? 'CL')}
+              {getInitials(user?.name ?? 'EZ')}
             </div>
             <button
               onClick={() => { logout(); navigate('/login') }}
@@ -148,7 +148,7 @@ export default function ClientLayout() {
       {/* Footer */}
       <footer className="py-4 px-6 text-center" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
         <p className="text-[10px] text-slate-700">
-          Powered by <span className="text-slate-500 font-semibold">CL Media Operations System</span>
+          Powered by <span className="text-slate-500 font-semibold">EZ Marketing Agency — Media Operations System</span>
         </p>
       </footer>
     </div>

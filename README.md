@@ -1,4 +1,4 @@
-# CL — Media Operations System
+# EZ Marketing Agency — Media Operations System
 
 End-to-end media operations platform for content agencies.
 

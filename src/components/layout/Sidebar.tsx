@@ -58,11 +58,11 @@ export default function Sidebar() {
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-white text-base flex-shrink-0"
             style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-            CL
+            EZ
           </div>
           <div>
-            <div className="text-[15px] font-bold text-white leading-tight">CL</div>
-            <div className="text-[10px] text-slate-500 leading-tight">Media Ops System</div>
+            <div className="text-[15px] font-bold text-white leading-tight">EZ Marketing</div>
+            <div className="text-[10px] text-slate-500 leading-tight">Agency · Media Ops</div>
           </div>
         </div>
       </div>

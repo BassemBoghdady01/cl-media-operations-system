@@ -1,5 +1,5 @@
 /**
- * CL — Media Operations System
+ * EZ Marketing Agency — Media Operations System
  * Global application configuration
  *
  * Change VITE_DEMO_MODE=false in your .env to switch to live Supabase data.
@@ -7,7 +7,13 @@
 
 export const APP_CONFIG = {
   /** Public brand name shown across the UI */
-  name: 'CL',
+  name: 'EZ Marketing Agency',
+
+  /** Compact wordmark for narrow lockups (sidebar, portal header) */
+  shortName: 'EZ Marketing',
+
+  /** Two-letter mark rendered inside the gradient logo tile */
+  initials: 'EZ',
 
   /** Short tagline */
   tagline: 'Media Operations System',
@@ -20,10 +26,29 @@ export const APP_CONFIG = {
   version: '1.0.0',
 
   /** Copyright holder */
-  company: 'CL Agency',
+  company: 'EZ Marketing Agency',
 
   /** Support email */
-  supportEmail: 'support@cl.agency',
+  supportEmail: 'support@ezmarketing.agency',
+
+  /** Email-domain handling for the bare-username login shorthand */
+  auth: {
+    /** Bare usernames ("admin") are expanded to this domain */
+    emailDomain: 'ezmarketing.agency',
+
+    /**
+     * DEPRECATED — pre-rebrand domain, kept only so accounts created before the
+     * EZ Marketing Agency rename can still sign in with the bare-username
+     * shorthand. Login tries `emailDomain` first and only falls back to this on
+     * a rejected-credentials response.
+     *
+     * MIGRATION: once every Supabase Auth user has been moved to
+     * `emailDomain`, set this to null and delete the fallback branch in
+     * AuthContext `login()`. Users who type their full email address are
+     * unaffected either way. See HANDOVER.md → "Email domain migration".
+     */
+    legacyEmailDomain: 'cl.agency' as string | null,
+  },
 
   /**
    * Feature flags
