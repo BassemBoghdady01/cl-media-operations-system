@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Camera, MapPin, Clock, Users, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import PageErrorState from '../../components/system/PageErrorState'
 import { bookingService } from '../../services/bookingService'
 import type { Booking } from '../../types'
 import { format, parseISO } from 'date-fns'
@@ -19,13 +20,20 @@ export default function ClientBookings() {
   const { user } = useAuth()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
+    setLoadError(null)
     bookingService.getByClient(user.id).then((data) => {
       setBookings(data)
       setLoading(false)
     })
+      .catch((err) => {
+        console.error('[ClientBookings] data load failed', err)
+        setLoadError(err instanceof Error ? err.message : 'Could not load your data.')
+        setLoading(false)
+      })
   }, [user])
 
   const upcoming = bookings.filter(

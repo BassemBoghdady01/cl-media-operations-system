@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Film, Clock, CheckCircle, Eye, ExternalLink, Filter } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import PageErrorState from '../../components/system/PageErrorState'
 import { videoService } from '../../services/videoService'
 import type { Video } from '../../types'
 
@@ -21,14 +22,21 @@ export default function ClientVideos() {
   const { user } = useAuth()
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>('all')
 
   useEffect(() => {
     if (!user) return
+    setLoadError(null)
     videoService.getByClient(user.id).then((data) => {
       setVideos(data)
       setLoading(false)
     })
+      .catch((err) => {
+        console.error('[ClientVideos] data load failed', err)
+        setLoadError(err instanceof Error ? err.message : 'Could not load your data.')
+        setLoading(false)
+      })
   }, [user])
 
   const filtered = filter === 'all' ? videos : videos.filter((v) => v.status === filter)

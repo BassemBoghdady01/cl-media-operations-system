@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { FolderOpen, FileText, Image, Film, Music, Download } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import PageErrorState from '../../components/system/PageErrorState'
 import { assetService } from '../../services/assetService'
 import type { Asset } from '../../types'
 
@@ -27,14 +28,21 @@ export default function ClientAssets() {
   const { user } = useAuth()
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [activeFolder, setActiveFolder] = useState<string>('all')
 
   useEffect(() => {
     if (!user) return
+    setLoadError(null)
     assetService.getByClient(user.id).then((data) => {
       setAssets(data)
       setLoading(false)
     })
+      .catch((err) => {
+        console.error('[ClientAssets] data load failed', err)
+        setLoadError(err instanceof Error ? err.message : 'Could not load your data.')
+        setLoading(false)
+      })
   }, [user])
 
   const folders = ['all', ...Array.from(new Set(assets.map((a) => a.folder)))]

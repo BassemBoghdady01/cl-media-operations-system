@@ -1,12 +1,8 @@
-export type UserRole =
-  | 'super_admin'
-  | 'agency_admin'
-  | 'project_manager'
-  | 'editor'
-  | 'social_manager'
-  | 'client'
-  | 'creator'
-  | 'accountant'
+// Roles live in src/config/roles.ts — the single source of truth.
+// Imported for use below and re-exported so existing
+// `import type { UserRole } from '../types'` keeps working.
+import type { UserRole, Permission } from '../config/roles'
+export type { UserRole, Permission }
 
 export type VideoStatus =
   | 'idea'

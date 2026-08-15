@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { CreditCard, Download, CheckCircle, AlertCircle, Clock } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import PageErrorState from '../../components/system/PageErrorState'
 import { invoiceService } from '../../services/invoiceService'
 import type { Invoice } from '../../types'
 import { format, parseISO } from 'date-fns'
@@ -18,13 +19,20 @@ export default function ClientInvoices() {
   const { user } = useAuth()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
+    setLoadError(null)
     invoiceService.getByClient(user.id).then((data) => {
       setInvoices(data)
       setLoading(false)
     })
+      .catch((err) => {
+        console.error('[ClientInvoices] data load failed', err)
+        setLoadError(err instanceof Error ? err.message : 'Could not load your data.')
+        setLoading(false)
+      })
   }, [user])
 
   const totalPaid = invoices.filter((i) => i.status === 'paid').reduce((s, i) => s + i.total, 0)

@@ -89,6 +89,8 @@ export const APP_CONFIG = {
     clientHome: '/client',
     login: '/login',
     signup: '/signup',
+    /** Shown when a workspace/role is not usable yet. Sits outside the role guards. */
+    setup: '/app/setup',
   },
 
   /** Storage bucket names (must match supabase/storage.sql) */

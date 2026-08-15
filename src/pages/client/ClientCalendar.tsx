@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Calendar, CheckCircle, Clock, ExternalLink } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import PageErrorState from '../../components/system/PageErrorState'
 import { calendarService, type CalendarItem } from '../../services/calendarService'
 import { format, parseISO, isSameMonth, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
 
@@ -13,15 +14,22 @@ export default function ClientCalendar() {
   const { user } = useAuth()
   const [items, setItems] = useState<CalendarItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
+    setLoadError(null)
     calendarService.getByClient(user.id, false).then((data) => {
       setItems(data)
       setLoading(false)
     })
+      .catch((err) => {
+        console.error('[ClientCalendar] data load failed', err)
+        setLoadError(err instanceof Error ? err.message : 'Could not load your data.')
+        setLoading(false)
+      })
   }, [user])
 
   const monthDays = eachDayOfInterval({

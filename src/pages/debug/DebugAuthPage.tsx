@@ -4,15 +4,19 @@
  * Shows the full auth state, Supabase session, raw DB profile, and env vars.
  * Useful for diagnosing blank-screen / login loop issues in production.
  *
- * This page is PUBLIC (no auth guard). Remove or gate it before shipping to end users.
+ * ACCESS: development builds, or an authenticated Super Admin. Everyone else is
+ * redirected home — this page exposes account internals and must not be public.
+ * It never renders keys or tokens.
  */
 
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 import { CheckCircle, XCircle, AlertTriangle, RefreshCw, LogOut, ArrowRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase, isSupabaseReady } from '../../lib/supabase'
 import { APP_CONFIG } from '../../config/app'
+import { ROLES, ROLE_LABELS } from '../../config/roles'
+import { FullScreenLoader } from '../../components/system/FullScreenState'
 
 interface RawProfile {
   id: string
@@ -84,7 +88,19 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 }
 
 export default function DebugAuthPage() {
-  const { user, isAuthenticated, isLoading, role, authError, logout } = useAuth()
+  const {
+    user,
+    isAuthenticated,
+    isLoading,
+    role,
+    authError,
+    logout,
+    session: ctxSession,
+    profile,
+    agency,
+    permissions,
+    status,
+  } = useAuth()
   const [session, setSession] = useState<RawSession | null>(null)
   const [rawProfile, setRawProfile] = useState<RawProfile | null>(null)
   const [profileQueryError, setProfileQueryError] = useState<string | null>(null)
@@ -116,6 +132,8 @@ export default function DebugAuthPage() {
     setChecking(false)
   }
 
+  const location = useLocation()
+
   useEffect(() => {
     runChecks()
   }, [])
@@ -127,6 +145,16 @@ export default function DebugAuthPage() {
     demoMode: import.meta.env.VITE_DEMO_MODE,
     aiEnabled: import.meta.env.VITE_ENABLE_AI,
     appUrl: import.meta.env.VITE_APP_URL,
+  }
+
+  // ── Access gate ───────────────────────────────────────────────────────────
+  // Development builds always allow it (that is when you need it most, including
+  // while auth is broken). In production only a Super Admin may look.
+  // Placed after all hooks so hook order stays stable.
+  const mayView = import.meta.env.DEV || role === ROLES.SUPER_ADMIN
+  if (!mayView) {
+    if (isLoading) return <FullScreenLoader />
+    return <Navigate to="/" replace />
   }
 
   return (
@@ -169,6 +197,80 @@ export default function DebugAuthPage() {
             <XCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
             <p className="text-sm text-red-300">{authError}</p>
           </div>
+        )}
+
+        {/* Canonical resolution summary */}
+        <Card title="Resolution Summary">
+          <Row
+            label="Supabase configured"
+            value={String(APP_CONFIG.isSupabaseConfigured)}
+            status={APP_CONFIG.isSupabaseConfigured ? 'ok' : 'error'}
+          />
+          <Row
+            label="Session exists"
+            value={String(!!ctxSession)}
+            status={ctxSession ? 'ok' : 'warn'}
+          />
+          <Row
+            label="Auth user id"
+            value={ctxSession?.user?.id ?? '—'}
+            status={ctxSession?.user?.id ? 'ok' : 'warn'}
+            mono
+          />
+          <Row
+            label="Email"
+            value={ctxSession?.user?.email ?? '—'}
+            status={ctxSession?.user?.email ? 'ok' : 'warn'}
+          />
+          <Row
+            label="Profile found"
+            value={String(!!profile)}
+            status={profile ? 'ok' : 'error'}
+          />
+          <Row
+            label="Agency found"
+            value={agency ? `${agency.name}` : '—'}
+            status={agency ? 'ok' : 'warn'}
+          />
+          <Row
+            label="Stored role (raw)"
+            value={profile?.role ?? '—'}
+            status={profile?.role ? 'info' : 'warn'}
+            mono
+          />
+          <Row
+            label="Resolved role"
+            value={role ? `${ROLE_LABELS[role]} (${role})` : 'unresolved'}
+            status={role ? 'ok' : 'error'}
+          />
+          <Row
+            label="Auth status"
+            value={status}
+            status={status === 'ready' ? 'ok' : status === 'loading' ? 'info' : 'error'}
+            mono
+          />
+          <Row
+            label="Permissions"
+            value={permissions.length ? `${permissions.length} granted` : 'none'}
+            status={permissions.length ? 'ok' : 'warn'}
+          />
+          <Row label="Current route" value={location.pathname} mono />
+        </Card>
+
+        {permissions.length > 0 && (
+          <Card title="Granted Permissions">
+            <div className="flex flex-wrap gap-1.5 py-1">
+              {permissions.map((p) => (
+                <span
+                  key={p}
+                  className="text-[10px] font-mono px-2 py-1 rounded-lg text-blue-300"
+                  style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}
+                >
+                  {p}
+                </span>
+              ))}
+            </div>
+          </Card>
         )}
 
         {/* Context state */}
@@ -222,18 +324,18 @@ export default function DebugAuthPage() {
           <Row
             label="session exists"
             value={session ? 'yes' : 'null'}
-            status={session ? 'ok' : 'error'}
+            status={ctxSession ? 'ok' : 'error'}
           />
           <Row
             label="session.user.id"
-            value={session?.user?.id ?? 'null'}
+            value={ctxSession?.user?.id ?? 'null'}
             status={session?.user ? 'ok' : 'error'}
             mono
           />
           <Row
             label="session.user.email"
-            value={session?.user?.email ?? 'null'}
-            status={session?.user?.email ? 'ok' : 'warn'}
+            value={ctxSession?.user?.email ?? 'null'}
+            status={ctxSession?.user?.email ? 'ok' : 'warn'}
           />
           <Row
             label="token expires"

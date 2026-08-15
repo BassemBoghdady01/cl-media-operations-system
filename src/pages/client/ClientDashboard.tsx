@@ -6,6 +6,7 @@ import {
   Package, CreditCard, Camera, ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import PageErrorState from '../../components/system/PageErrorState'
 import { videoService } from '../../services/videoService'
 import { packageService } from '../../services/packageService'
 import { invoiceService } from '../../services/invoiceService'
@@ -33,9 +34,11 @@ export default function ClientDashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
+    setLoadError(null)
     Promise.all([
       videoService.getByClient(user.id),
       packageService.getByClient(user.id),
@@ -48,6 +51,11 @@ export default function ClientDashboard() {
       setBookings(b)
       setLoading(false)
     })
+      .catch((err) => {
+        console.error('[ClientDashboard] data load failed', err)
+        setLoadError(err instanceof Error ? err.message : 'Could not load your data.')
+        setLoading(false)
+      })
   }, [user])
 
   const forReview = videos.filter((v) => v.status === 'client_review')
@@ -59,6 +67,19 @@ export default function ClientDashboard() {
   const nextBooking = bookings.find((b) =>
     !['completed', 'cancelled'].includes(b.status) && new Date(b.date) >= new Date()
   )
+
+  if (loadError) {
+    return (
+      <PageErrorState
+        message={loadError}
+        onRetry={() => {
+          setLoadError(null)
+          setLoading(true)
+          window.location.reload()
+        }}
+      />
+    )
+  }
 
   if (loading) {
     return (

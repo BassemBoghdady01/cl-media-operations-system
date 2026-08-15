@@ -31,16 +31,27 @@ import ClientAssets from './pages/client/ClientAssets'
 import ClientPackage from './pages/client/ClientPackage'
 import ClientInvoices from './pages/client/ClientInvoices'
 import DebugAuthPage from './pages/debug/DebugAuthPage'
+import SetupRequiredPage from './pages/system/SetupRequiredPage'
+import AppErrorBoundary from './components/system/AppErrorBoundary'
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <AppErrorBoundary>
         <Routes>
           {/* ── Public ─────────────────────────────────────────────── */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+
+          {/* ── Setup / access states ───────────────────────────────────
+              Authenticated but not `ready` (no profile, no agency, unknown
+              role, or a resolution error). Sits INSIDE ProtectedRoute but
+              OUTSIDE every role guard, so it can never join a redirect loop. */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/app/setup" element={<SetupRequiredPage />} />
+          </Route>
 
           {/* ── Internal App (requires auth + internal role) ────────── */}
           <Route element={<ProtectedRoute />}>
@@ -89,6 +100,7 @@ export default function App() {
           <Route path="/portal" element={<Navigate to="/client" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </AppErrorBoundary>
       </AuthProvider>
     </BrowserRouter>
   )

@@ -6,11 +6,19 @@
  * if Supabase is not configured, login and signup fail with a clear message
  * rather than falling back to hardcoded accounts.
  *
- * Self-healing features:
- *   - If profile.agency_id is NULL (common on first login), auto-creates an agency
- *   - If profile row is missing entirely (trigger failure), auto-creates profile + agency
- *   - 8-second loading timeout prevents infinite blank spinner
- *   - Uses ONLY onAuthStateChange (not getSession+onAuthStateChange) to prevent double-fire
+ * ── Contract ─────────────────────────────────────────────────────────────────
+ * Every sign-in resolves to exactly one terminal `status`:
+ *
+ *   loading          — still resolving (isLoading true)
+ *   unauthenticated  — no session; guards send the user to /login
+ *   ready            — profile + agency + recognised role all present
+ *   needs_profile    — auth user exists but no profiles row could be created
+ *   needs_agency     — profile exists but has no usable agency
+ *   unsupported_role — profile role is missing or not recognised
+ *   error            — something threw; `error` holds the message
+ *
+ * `isLoading` ALWAYS becomes false — on success, on failure, on throw, and via a
+ * hard timeout. No path leaves the app spinning or blank.
  */
 
 import {
@@ -22,22 +30,46 @@ import {
   useRef,
   type ReactNode,
 } from 'react'
-import type { User, UserRole } from '../types'
+import type { Session } from '@supabase/supabase-js'
+import type { User } from '../types'
 import { supabase, isSupabaseReady } from '../lib/supabase'
 import { APP_CONFIG } from '../config/app'
+import {
+  normalizeRole,
+  permissionsForRole,
+  roleHasPermission,
+  homeRouteForRole,
+  ROLES,
+  type Permission,
+  type UserRole,
+} from '../config/roles'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface AuthContextType {
-  user: User | null
-  isAuthenticated: boolean
-  isLoading: boolean
-  /** Non-null when auth encountered a recoverable or display error */
-  authError: string | null
-  login: (identifier: string, password: string) => Promise<{ redirect: string }>
-  signup: (params: SignupParams) => Promise<SignupResult>
-  logout: () => Promise<void>
-  role: UserRole | null
+export type AuthStatus =
+  | 'loading'
+  | 'unauthenticated'
+  | 'ready'
+  | 'needs_profile'
+  | 'needs_agency'
+  | 'unsupported_role'
+  | 'error'
+
+export interface ProfileRow {
+  id: string
+  agency_id: string | null
+  full_name: string
+  email: string
+  role: string
+  avatar_url?: string | null
+  created_at: string
+}
+
+export interface AgencyRow {
+  id: string
+  name: string
+  plan?: string | null
+  created_at?: string
 }
 
 interface SignupParams {
@@ -53,16 +85,31 @@ interface SignupResult {
   needsEmailConfirmation: boolean
 }
 
-// ─── Supabase profile row shape ───────────────────────────────────────────────
+interface AuthContextType {
+  // ── Identity ──
+  user: User | null
+  session: Session | null
+  profile: ProfileRow | null
+  agency: AgencyRow | null
+  role: UserRole | null
+  permissions: Permission[]
 
-interface ProfileRow {
-  id: string
-  agency_id: string | null
-  full_name: string
-  email: string
-  role: string
-  avatar_url?: string | null
-  created_at: string
+  // ── State ──
+  status: AuthStatus
+  isAuthenticated: boolean
+  isLoading: boolean
+  /** Alias of isLoading */
+  loading: boolean
+  error: string | null
+  /** Alias of error (back-compat) */
+  authError: string | null
+
+  // ── Actions ──
+  login: (identifier: string, password: string) => Promise<{ redirect: string }>
+  signup: (params: SignupParams) => Promise<SignupResult>
+  logout: () => Promise<void>
+  refresh: () => Promise<void>
+  hasPermission: (permission: Permission) => boolean
 }
 
 // ─── Auth availability ────────────────────────────────────────────────────────
@@ -74,26 +121,8 @@ const AUTH_UNAVAILABLE =
   'Authentication is not configured. Set VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, ' +
   'and VITE_ENABLE_REAL_AUTH=true, then reload.'
 
-// ─── Role → redirect map ──────────────────────────────────────────────────────
-
-function getRedirectForRole(role: UserRole): string {
-  switch (role) {
-    case 'agency_admin':
-    case 'super_admin':
-    case 'project_manager':
-      return APP_CONFIG.routes.adminHome
-    case 'editor':
-    case 'social_manager':
-    case 'creator':
-      return APP_CONFIG.routes.editorHome
-    case 'accountant':
-      return APP_CONFIG.routes.accountantHome
-    case 'client':
-      return APP_CONFIG.routes.clientHome
-    default:
-      return APP_CONFIG.routes.adminHome
-  }
-}
+/** Hard ceiling on session resolution. Guarantees isLoading always clears. */
+const RESOLVE_TIMEOUT_MS = 10_000
 
 // ─── Debug logger (dev only) ─────────────────────────────────────────────────
 
@@ -104,142 +133,296 @@ function dbg(msg: string, data?: unknown) {
   }
 }
 
+/** Snapshot produced by resolveSession — mirrors what gets pushed into state. */
+interface Resolved {
+  status: AuthStatus
+  user: User | null
+  profile: ProfileRow | null
+  agency: AgencyRow | null
+  role: UserRole | null
+  error: string | null
+}
+
+const EMPTY: Resolved = {
+  status: 'unauthenticated',
+  user: null,
+  profile: null,
+  agency: null,
+  role: null,
+  error: null,
+}
+
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null)
   const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<ProfileRow | null>(null)
+  const [agency, setAgency] = useState<AgencyRow | null>(null)
+  const [role, setRole] = useState<UserRole | null>(null)
+  const [status, setStatus] = useState<AuthStatus>('loading')
   const [isLoading, setIsLoading] = useState(true)
-  const [authError, setAuthError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   // Safety: prevent duplicate subscription in React StrictMode double-invoke
   const subscribedRef = useRef(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSessionRef = useRef<Session | null>(null)
+
+  const applyResolved = useCallback((r: Resolved) => {
+    setStatus(r.status)
+    setUser(r.user)
+    setProfile(r.profile)
+    setAgency(r.agency)
+    setRole(r.role)
+    setError(r.error)
+    setIsLoading(false)
+  }, [])
 
   // ─── Map Supabase profile row → app User ────────────────────────────────────
-  const mapProfile = (p: ProfileRow): User => ({
+  const mapProfile = (p: ProfileRow, resolvedRole: UserRole | null): User => ({
     id: p.id,
-    name: p.full_name || p.email.split('@')[0],
+    name: p.full_name || p.email?.split('@')[0] || 'User',
     email: p.email,
-    role: (p.role as UserRole) || 'agency_admin',
+    // Falls back to CLIENT (least privilege) purely to satisfy the type; callers
+    // branch on `status`/`role`, never on user.role, when the role is unknown.
+    role: resolvedRole ?? ROLES.CLIENT,
     agencyId: p.agency_id || '',
     avatar: p.avatar_url ?? undefined,
     createdAt: p.created_at,
   })
 
   // ─── Auto-create agency for first-time users ────────────────────────────────
-  // Called when profile.agency_id is NULL — creates a default agency
-  // then updates the profile row to link to it.
-  const autoCreateAgency = async (userId: string, profile: ProfileRow): Promise<ProfileRow | null> => {
-    if (!supabase) return null
+  // Called when profile.agency_id is NULL — creates a default agency then links
+  // the profile to it. Returns null when the repair could not be completed; the
+  // caller surfaces `needs_agency` rather than blanking.
+  const autoCreateAgency = async (
+    userId: string,
+    p: ProfileRow
+  ): Promise<{ profile: ProfileRow | null; reason?: string }> => {
+    if (!supabase) return { profile: null, reason: 'Supabase client unavailable.' }
     dbg('auto-creating agency', { userId })
 
-    // Re-read the profile first — another concurrent call may have just finished
+    // Re-read first — a concurrent resolve may have just finished the repair.
     const { data: fresh } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
     if (fresh && (fresh as ProfileRow).agency_id) {
       dbg('agency already created by concurrent call — using it')
-      return fresh as ProfileRow
+      return { profile: fresh as ProfileRow }
     }
 
-    // Insert a new agency
-    const agencyName = profile.full_name
-      ? `${profile.full_name}'s Agency`
-      : profile.email.split('@')[0] + "'s Agency"
+    const agencyName = p.full_name
+      ? `${p.full_name}'s Agency`
+      : `${(p.email || 'new').split('@')[0]}'s Agency`
 
-    const { data: agency, error: agencyErr } = await supabase
+    const { data: created, error: agencyErr } = await supabase
       .from('agencies')
       .insert({ name: agencyName, plan: 'starter' })
       .select()
       .single()
 
-    if (agencyErr || !agency) {
+    if (agencyErr || !created) {
       dbg('agency insert failed', agencyErr)
-      return null
+      return { profile: null, reason: agencyErr?.message ?? 'Could not create an agency.' }
     }
-    dbg('agency created', { id: agency.id })
+    dbg('agency created', { id: created.id })
 
-    // Update profile to link agency and promote to admin
+    // Link the profile and promote the workspace creator to agency admin.
     const { data: updated, error: updateErr } = await supabase
       .from('profiles')
-      .update({ agency_id: agency.id, role: 'agency_admin' })
+      .update({ agency_id: created.id, role: ROLES.AGENCY_ADMIN })
       .eq('id', userId)
       .select()
       .single()
 
     if (updateErr || !updated) {
       dbg('profile update failed', updateErr)
-      return null
+      // The agency exists but the link failed — most commonly the profiles.role
+      // CHECK constraint rejecting 'agency_admin' on an un-migrated database.
+      // Retry linking the agency WITHOUT touching the role so the user still
+      // gets a working workspace.
+      const { data: linkOnly, error: linkErr } = await supabase
+        .from('profiles')
+        .update({ agency_id: created.id })
+        .eq('id', userId)
+        .select()
+        .single()
+
+      if (linkErr || !linkOnly) {
+        return {
+          profile: null,
+          reason: updateErr?.message ?? 'Could not link your profile to an agency.',
+        }
+      }
+      dbg('profile linked (role left unchanged)', linkOnly)
+      return { profile: linkOnly as ProfileRow }
     }
+
     dbg('profile linked to agency', updated)
-    return updated as ProfileRow
+    return { profile: updated as ProfileRow }
   }
 
-  // ─── Fetch (and optionally auto-heal) the user's profile ────────────────────
-  const fetchProfile = async (userId: string, sessionEmail?: string): Promise<User | null> => {
-    if (!supabase) return null
-    dbg('fetchProfile', { userId })
+  // ─── Resolve a session into a terminal auth state ───────────────────────────
+  const resolveSession = useCallback(async (s: Session | null): Promise<Resolved> => {
+    if (!s?.user || !supabase) return { ...EMPTY }
 
-    const { data, error } = await supabase
+    const userId = s.user.id
+    const sessionEmail = s.user.email ?? undefined
+
+    // ── 1. Load the profile ──────────────────────────────────────────────────
+    const { data, error: profileErr } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
-    if (error && error.code !== 'PGRST116') {
-      // PGRST116 = "no rows" — expected when profile doesn't exist yet
-      dbg('fetchProfile query error', { code: error.code, message: error.message })
+    if (profileErr) {
+      dbg('profile query error', { code: profileErr.code, message: profileErr.message })
     }
 
-    let profile = data as ProfileRow | null
+    let p = (data as ProfileRow | null) ?? null
 
-    // ── Recovery A: profile exists but has no agency ─────────────────────────
-    if (profile && !profile.agency_id) {
-      dbg('profile.agency_id is NULL — running auto-recovery')
-      profile = await autoCreateAgency(userId, profile)
-    }
-
-    // ── Recovery B: profile row missing entirely (trigger may have failed) ────
-    if (!profile && sessionEmail) {
-      dbg('profile not found — inserting default')
-      const name = sessionEmail.split('@')[0]
+    // ── 2. Bootstrap a missing profile (trigger failure / manual auth user) ──
+    if (!p && sessionEmail) {
+      dbg('profile not found — bootstrapping')
       const { data: inserted, error: insertErr } = await supabase
         .from('profiles')
-        .insert({ id: userId, email: sessionEmail, full_name: name, role: 'agency_admin' })
+        .insert({
+          id: userId,
+          email: sessionEmail,
+          full_name:
+            (s.user.user_metadata?.full_name as string | undefined) ||
+            sessionEmail.split('@')[0],
+        })
         .select()
         .single()
 
       if (insertErr) {
-        dbg('profile insert failed', insertErr)
-        setAuthError('Could not create your profile. Please contact your administrator.')
-        return null
+        dbg('profile bootstrap failed', insertErr)
+        return {
+          status: 'needs_profile',
+          user: null,
+          profile: null,
+          agency: null,
+          role: null,
+          error: insertErr.message,
+        }
       }
+      p = inserted as ProfileRow
+    }
 
-      profile = inserted as ProfileRow
-
-      // Also create agency for the newly inserted profile
-      if (profile && !profile.agency_id) {
-        profile = await autoCreateAgency(userId, profile)
+    if (!p) {
+      return {
+        status: 'needs_profile',
+        user: null,
+        profile: null,
+        agency: null,
+        role: null,
+        error: 'No profile record exists for this account.',
       }
     }
 
-    if (!profile) {
-      dbg('fetchProfile: no profile after recovery')
-      return null
+    // ── 3. Resolve the role through the canonical mapping ────────────────────
+    const resolvedRole = normalizeRole(p.role)
+
+    // ── 4. Ensure an agency ──────────────────────────────────────────────────
+    let agencyRepairError: string | undefined
+    if (!p.agency_id) {
+      dbg('profile.agency_id is NULL — running auto-recovery')
+      const repair = await autoCreateAgency(userId, p)
+      if (repair.profile) {
+        p = repair.profile
+      } else {
+        agencyRepairError = repair.reason
+      }
     }
 
-    return mapProfile(profile)
-  }
+    // Re-resolve: autoCreateAgency may have promoted the role.
+    const finalRole = normalizeRole(p.role) ?? resolvedRole
+    const appUser = mapProfile(p, finalRole)
+
+    if (!p.agency_id) {
+      return {
+        status: 'needs_agency',
+        user: appUser,
+        profile: p,
+        agency: null,
+        role: finalRole,
+        error: agencyRepairError ?? 'Your profile is not linked to a workspace.',
+      }
+    }
+
+    // ── 5. Load the agency row (non-fatal if RLS hides it) ───────────────────
+    let agencyRow: AgencyRow | null = null
+    const { data: ag, error: agErr } = await supabase
+      .from('agencies')
+      .select('*')
+      .eq('id', p.agency_id)
+      .maybeSingle()
+
+    if (agErr) dbg('agency query error', { code: agErr.code, message: agErr.message })
+    else agencyRow = (ag as AgencyRow | null) ?? null
+
+    // ── 6. Unknown role → explicit state, never a guarded route ──────────────
+    if (!finalRole) {
+      return {
+        status: 'unsupported_role',
+        user: appUser,
+        profile: p,
+        agency: agencyRow,
+        role: null,
+        error: `Role "${p.role}" is not recognised.`,
+      }
+    }
+
+    return {
+      status: 'ready',
+      user: appUser,
+      profile: p,
+      agency: agencyRow,
+      role: finalRole,
+      error: null,
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /** Resolve + push to state, converting any throw into a terminal error state. */
+  const resolveAndApply = useCallback(
+    async (s: Session | null) => {
+      try {
+        const resolved = await resolveSession(s)
+        applyResolved(resolved)
+        return resolved
+      } catch (err) {
+        dbg('resolveSession threw', err)
+        const resolved: Resolved = {
+          status: 'error',
+          user: null,
+          profile: null,
+          agency: null,
+          role: null,
+          error:
+            err instanceof Error ? err.message : 'Unexpected error while loading your workspace.',
+        }
+        applyResolved(resolved)
+        return resolved
+      }
+    },
+    [resolveSession, applyResolved]
+  )
 
   // ─── Supabase Auth listener ──────────────────────────────────────────────────
   useEffect(() => {
     if (!isSupabaseReady || !supabase || !APP_CONFIG.features.realAuth) {
-      dbg('Supabase auth not configured — no session listener')
+      dbg('Supabase auth not configured')
+      setStatus('error')
+      setError(AUTH_UNAVAILABLE)
       setIsLoading(false)
       return
     }
@@ -250,42 +433,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     dbg('starting auth listener')
 
-    // Never hang on isLoading forever — 8-second hard timeout
+    // Never hang forever — hard timeout resolves to an explicit error state.
     timeoutRef.current = setTimeout(() => {
-      dbg('auth timeout — forcing isLoading=false')
-      setIsLoading(false)
-    }, 8000)
+      dbg('auth resolve timed out')
+      setIsLoading((wasLoading) => {
+        if (wasLoading) {
+          setStatus('error')
+          setError('Timed out while loading your workspace. Check your connection and retry.')
+        }
+        return false
+      })
+    }, RESOLVE_TIMEOUT_MS)
 
-    // onAuthStateChange fires INITIAL_SESSION for existing sessions on page load.
-    // This replaces the old pattern of calling getSession() + onAuthStateChange separately,
-    // which caused fetchProfile to run twice on every page load.
+    // onAuthStateChange fires INITIAL_SESSION for existing sessions on page load,
+    // which is what restores the session after a refresh.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      dbg('onAuthStateChange', { event, userId: session?.user?.id })
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      dbg('onAuthStateChange', { event, userId: newSession?.user?.id })
 
-      if (session?.user) {
-        const appUser = await fetchProfile(session.user.id, session.user.email)
-        if (appUser) {
-          setUser(appUser)
-          setAuthError(null)
-          dbg('user set', { id: appUser.id, role: appUser.role, agencyId: appUser.agencyId })
-        } else {
-          dbg('fetchProfile returned null — cannot authenticate user')
-          setUser(null)
-          if (!authError) {
-            setAuthError(
-              'Could not load your profile. Visit /debug/auth for diagnostics, or contact support.'
-            )
-          }
-        }
-      } else {
-        setUser(null)
-        setAuthError(null)
+      lastSessionRef.current = newSession
+      setSession(newSession)
+
+      // TOKEN_REFRESHED carries no profile change — don't re-query on every refresh.
+      if (event === 'TOKEN_REFRESHED' && user) {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current)
+        return
       }
 
+      await resolveAndApply(newSession)
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      setIsLoading(false)
     })
 
     return () => {
@@ -300,7 +477,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (identifier: string, password: string): Promise<{ redirect: string }> => {
       const key = identifier.toLowerCase().trim()
-      setAuthError(null)
+      setError(null)
 
       if (!isSupabaseReady || !supabase || !APP_CONFIG.features.realAuth) {
         throw new Error(AUTH_UNAVAILABLE)
@@ -315,59 +492,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? [key]
         : [`${key}@${emailDomain}`, ...(legacyEmailDomain ? [`${key}@${legacyEmailDomain}`] : [])]
 
-      let authedUser: { id: string; email?: string } | null = null
+      let authedSession: Session | null = null
       let lastError: Error | null = null
 
       for (const email of candidates) {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+        const { data, error: signInErr } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
 
-        if (!error && data.user) {
-          authedUser = data.user
+        if (!signInErr && data.session) {
+          authedSession = data.session
           lastError = null
           break
         }
 
-        lastError = new Error(error?.message ?? 'Login failed — no user returned.')
+        lastError = new Error(signInErr?.message ?? 'Login failed — no session returned.')
 
         // Only fall through to the legacy domain when the credentials were
         // rejected (400). Stop on rate limits, network faults, or unconfirmed
         // emails so those surface instead of burning a second auth attempt.
-        if (error && error.status !== 400) break
+        if (signInErr && signInErr.status !== 400) break
       }
 
-      if (!authedUser) throw lastError ?? new Error('Login failed — no user returned.')
+      if (!authedSession) throw lastError ?? new Error('Login failed — no session returned.')
 
-      // Fetch profile directly (onAuthStateChange will also fire, but this gives us
-      // the redirect URL immediately and triggers auto-recovery if needed)
-      const appUser = await fetchProfile(authedUser.id, authedUser.email)
-      if (!appUser) {
-        await supabase.auth.signOut()
-        throw new Error(
-          'Your profile could not be loaded. ' +
-            'Visit /debug/auth to diagnose, or contact your administrator.'
-        )
+      setSession(authedSession)
+      const resolved = await resolveAndApply(authedSession)
+
+      // Anything short of `ready` goes to the setup route, which is deliberately
+      // outside the role guards. Never redirect into a guarded route the user
+      // cannot enter — that is what produced the blank-screen redirect loop.
+      return {
+        redirect:
+          resolved.status === 'ready'
+            ? homeRouteForRole(resolved.role)
+            : APP_CONFIG.routes.setup,
       }
-
-      setUser(appUser)
-      return { redirect: getRedirectForRole(appUser.role) }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [resolveAndApply]
   )
 
   // ─── Signup ─────────────────────────────────────────────────────────────────
   // Creates the account through Supabase Auth. The caller supplies the password;
   // there is no default. `full_name` / `agency_name` ride along in user_metadata
-  // so the profiles trigger (or the fetchProfile recovery path) can pick them up.
+  // so the profiles trigger (or the bootstrap path) can pick them up.
   const signup = useCallback(
     async ({ email, password, fullName, agencyName }: SignupParams): Promise<SignupResult> => {
-      setAuthError(null)
+      setError(null)
 
       if (!isSupabaseReady || !supabase || !APP_CONFIG.features.realAuth) {
         throw new Error(AUTH_UNAVAILABLE)
       }
 
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error: signUpErr } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
         password,
         options: {
@@ -378,51 +556,94 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       })
 
-      if (error) throw new Error(error.message)
+      if (signUpErr) throw new Error(signUpErr.message)
       if (!data.user) throw new Error('Sign-up failed — no user returned.')
 
       // With "Confirm email" enabled, Supabase returns a user but no session.
-      // The account exists; the user must confirm before they can sign in.
       if (!data.session) {
         return { redirect: APP_CONFIG.routes.login, needsEmailConfirmation: true }
       }
 
-      const appUser = await fetchProfile(data.user.id, data.user.email)
-      if (!appUser) {
-        await supabase.auth.signOut()
-        throw new Error(
-          'Your account was created, but the profile could not be loaded. ' +
-            'Sign in again, or visit /debug/auth to diagnose.'
-        )
-      }
+      setSession(data.session)
+      const resolved = await resolveAndApply(data.session)
 
-      setUser(appUser)
-      return { redirect: getRedirectForRole(appUser.role), needsEmailConfirmation: false }
+      return {
+        redirect:
+          resolved.status === 'ready'
+            ? homeRouteForRole(resolved.role)
+            : APP_CONFIG.routes.setup,
+        needsEmailConfirmation: false,
+      }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [resolveAndApply]
   )
+
+  // ─── Refresh ────────────────────────────────────────────────────────────────
+  // Re-runs resolution against the current session. Used by the setup and error
+  // screens' Retry buttons — e.g. after an admin fixes a role or runs the migration.
+  const refresh = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+
+    if (!isSupabaseReady || !supabase || !APP_CONFIG.features.realAuth) {
+      setStatus('error')
+      setError(AUTH_UNAVAILABLE)
+      setIsLoading(false)
+      return
+    }
+
+    try {
+      const { data } = await supabase.auth.getSession()
+      setSession(data.session)
+      await resolveAndApply(data.session)
+    } catch (err) {
+      applyResolved({
+        status: 'error',
+        user: null,
+        profile: null,
+        agency: null,
+        role: null,
+        error: err instanceof Error ? err.message : 'Could not refresh your session.',
+      })
+    }
+  }, [resolveAndApply, applyResolved])
 
   // ─── Logout ─────────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
     if (isSupabaseReady && supabase && APP_CONFIG.features.realAuth) {
       await supabase.auth.signOut()
     }
-    setUser(null)
-    setAuthError(null)
-  }, [])
+    setSession(null)
+    applyResolved({ ...EMPTY })
+  }, [applyResolved])
+
+  const hasPermission = useCallback(
+    (permission: Permission) => roleHasPermission(role, permission),
+    [role]
+  )
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        isAuthenticated: !!user,
+        session,
+        profile,
+        agency,
+        role,
+        permissions: permissionsForRole(role),
+
+        status,
+        isAuthenticated: status === 'ready',
         isLoading,
-        authError,
+        loading: isLoading,
+        error,
+        authError: error,
+
         login,
         signup,
         logout,
-        role: user?.role ?? null,
+        refresh,
+        hasPermission,
       }}
     >
       {children}
@@ -432,6 +653,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used inside AuthProvider')
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider')
   return ctx
 }

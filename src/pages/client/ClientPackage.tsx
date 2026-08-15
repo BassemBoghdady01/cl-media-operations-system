@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Package, Film, RefreshCw, Camera, AlertTriangle } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import PageErrorState from '../../components/system/PageErrorState'
 import { packageService } from '../../services/packageService'
 import type { Package as PackageType } from '../../types'
 import { format, parseISO, differenceInDays } from 'date-fns'
@@ -36,14 +37,34 @@ export default function ClientPackage() {
   const { user } = useAuth()
   const [pkg, setPkg] = useState<PackageType | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
+    setLoadError(null)
     packageService.getByClient(user.id).then((data) => {
       setPkg(data ?? null)
       setLoading(false)
     })
+      .catch((err) => {
+        console.error('[ClientPackage] data load failed', err)
+        setLoadError(err instanceof Error ? err.message : 'Could not load your data.')
+        setLoading(false)
+      })
   }, [user])
+
+  if (loadError) {
+    return (
+      <PageErrorState
+        message={loadError}
+        onRetry={() => {
+          setLoadError(null)
+          setLoading(true)
+          window.location.reload()
+        }}
+      />
+    )
+  }
 
   if (loading) {
     return (
