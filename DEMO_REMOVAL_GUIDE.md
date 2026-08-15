@@ -32,16 +32,14 @@ In seed mode:
 | `src/data/seed/index.ts` | Re-exports everything |
 | `src/data/mockData.ts` | Backward-compat re-export (can delete once services are live) |
 
-### Seed Auth Users (in `src/contexts/AuthContext.tsx`)
+### Seed Auth Users — REMOVED
 
-These credentials are in the `SEED_USERS` constant — NOT shown on the login page:
+The `SEED_USERS` constant and its demo credentials have been deleted from
+`src/contexts/AuthContext.tsx`. Authentication now runs exclusively through
+Supabase Auth (`signInWithPassword` / `signUp`), with no credential fallback.
 
-| Username | Password | Role | Redirect |
-|----------|----------|------|----------|
-| `dactrah_admin` or `admin@ezmarketing.agency` | `dactrah123` | Admin | `/app/dashboard` |
-| `dactrah_team` or `team@ezmarketing.agency` | `dactrah123` | Editor | `/app/pipeline` |
-| `dactrah_client` or `client@ezmarketing.agency` | `dactrah123` | Client | `/client` |
-| `dactrah_accountant` or `finance@ezmarketing.agency` | `dactrah123` | Accountant | `/app/billing` |
+Nothing remains to remove here. The seed data below is **display data only** and
+is independent of authentication.
 
 ---
 

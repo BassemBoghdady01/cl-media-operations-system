@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Zap, Mail, Lock, User, Building2, ArrowRight, Check } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -9,7 +9,9 @@ const steps = ['Agency Info', 'Your Account', 'Use Case']
 export default function SignupPage() {
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
-  const { login } = useAuth()
+  const [error, setError] = useState('')
+  const [confirmSent, setConfirmSent] = useState(false)
+  const { signup } = useAuth()
   const navigate = useNavigate()
 
   const [form, setForm] = useState({
@@ -19,10 +21,47 @@ export default function SignupPage() {
 
   const update = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }))
 
+  /** Validates the "Your Account" step. Returns '' when the fields are usable. */
+  const accountFieldsError = (): string => {
+    if (!form.name.trim()) return 'Please enter your full name.'
+    if (!form.email.trim()) return 'Please enter your work email.'
+    if (!form.password) return 'Please choose a password.'
+    if (form.password.length < 8) return 'Password must be at least 8 characters.'
+    return ''
+  }
+
+  const handleAccountContinue = () => {
+    const msg = accountFieldsError()
+    if (msg) { setError(msg); return }
+    setError('')
+    setStep(2)
+  }
+
   const handleFinish = async () => {
+    // Guard again at submit — the account fields live on a step the user has left.
+    const msg = accountFieldsError()
+    if (msg) { setError(msg); setStep(1); return }
+
     setLoading(true)
-    await login(form.email || 'admin@ezmarketing.agency', form.password || 'dactrah123')
-    setTimeout(() => navigate('/app/dashboard'), 600)
+    setError('')
+    try {
+      const { redirect, needsEmailConfirmation } = await signup({
+        email: form.email,
+        password: form.password,
+        fullName: form.name,
+        agencyName: form.agencyName,
+      })
+
+      if (needsEmailConfirmation) {
+        setConfirmSent(true)
+        return
+      }
+      navigate(redirect)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create your account. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -62,6 +101,36 @@ export default function SignupPage() {
           ))}
         </div>
 
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -8, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-4 px-4 py-3 rounded-xl text-sm text-red-400 flex items-center gap-2"
+              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)' }}>
+              <span>⚠️</span> {error}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {confirmSent ? (
+          <div className="glass-blue rounded-2xl p-7 text-center">
+            <div className="w-12 h-12 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+              style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.25)' }}>
+              <Check className="w-6 h-6 text-green-400" />
+            </div>
+            <h2 className="text-xl font-black text-white mb-1">Check your email</h2>
+            <p className="text-slate-400 text-sm mb-6">
+              We sent a confirmation link to{' '}
+              <span className="text-slate-200 font-medium">{form.email}</span>. Confirm your
+              address, then sign in.
+            </p>
+            <Link to="/login" className="btn-primary w-full justify-center py-3">
+              Go to sign in <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        ) : (
         <div className="glass-blue rounded-2xl p-7">
           {step === 0 && (
             <motion.div key="s0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
@@ -133,7 +202,7 @@ export default function SignupPage() {
               </div>
               <div className="flex gap-3 mt-6">
                 <button className="btn-secondary flex-1 justify-center py-3" onClick={() => setStep(0)}>Back</button>
-                <button className="btn-primary flex-1 justify-center py-3" onClick={() => setStep(2)}>
+                <button className="btn-primary flex-1 justify-center py-3" onClick={handleAccountContinue}>
                   Continue <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -181,6 +250,7 @@ export default function SignupPage() {
             </motion.div>
           )}
         </div>
+        )}
 
         <p className="text-center text-xs text-slate-500 mt-4">
           Already have an account?{' '}

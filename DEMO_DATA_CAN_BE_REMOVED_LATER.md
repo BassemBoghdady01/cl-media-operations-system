@@ -28,14 +28,11 @@ src/contexts/AuthContext.tsx  ← Demo user accounts (DEMO_USERS object)
 | Video Status Data | mockData.ts | `videoStatusData` |
 | Platform Data | mockData.ts | `platformData` |
 
-## Demo User Accounts (AuthContext.tsx)
+## Demo User Accounts — REMOVED
 
-| Username | Role | Password | Redirects to |
-|----------|------|----------|--------------|
-| dactrah_admin | Agency Admin | dactrah123 | /app/dashboard |
-| dactrah_team | Editor | dactrah123 | /app/pipeline |
-| dactrah_client | Client | dactrah123 | /client |
-| dactrah_accountant | Accountant | dactrah123 | /app/billing |
+The demo accounts previously listed here have been deleted from
+`AuthContext.tsx`. Sign-in and sign-up go through Supabase Auth only; there are
+no hardcoded credentials in the frontend.
 
 ## How to Remove Demo Data
 

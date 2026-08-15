@@ -1,9 +1,10 @@
 /**
  * EZ Marketing Agency — Auth Context
  *
- * Supports two modes:
- *   1. Supabase Auth (production) — when VITE_ENABLE_REAL_AUTH=true and Supabase is configured
- *   2. Seed fallback (demo/presentation) — when Supabase is not configured
+ * Authentication is handled exclusively by Supabase Auth
+ * (`signInWithPassword` / `signUp`). There is no demo or seed credential path —
+ * if Supabase is not configured, login and signup fail with a clear message
+ * rather than falling back to hardcoded accounts.
  *
  * Self-healing features:
  *   - If profile.agency_id is NULL (common on first login), auto-creates an agency
@@ -34,8 +35,22 @@ interface AuthContextType {
   /** Non-null when auth encountered a recoverable or display error */
   authError: string | null
   login: (identifier: string, password: string) => Promise<{ redirect: string }>
+  signup: (params: SignupParams) => Promise<SignupResult>
   logout: () => Promise<void>
   role: UserRole | null
+}
+
+interface SignupParams {
+  email: string
+  password: string
+  fullName?: string
+  agencyName?: string
+}
+
+interface SignupResult {
+  redirect: string
+  /** True when Supabase created the user but withheld a session pending email confirmation */
+  needsEmailConfirmation: boolean
 }
 
 // ─── Supabase profile row shape ───────────────────────────────────────────────
@@ -50,51 +65,14 @@ interface ProfileRow {
   created_at: string
 }
 
-// ─── Seed Users (demo/presentation mode only) ─────────────────────────────────
-// These are NOT shown on the login page. See DEMO_REMOVAL_GUIDE.md.
+// ─── Auth availability ────────────────────────────────────────────────────────
+// Shown when Supabase credentials or VITE_ENABLE_REAL_AUTH are missing. There is
+// deliberately no credential fallback — an unconfigured deployment must fail
+// loudly rather than admit anyone.
 
-const SEED_USERS: Record<string, { user: User; redirect: string; password: string }> = {
-  dactrah_admin: {
-    user: { id: 'tm1', name: 'Agency Admin', email: 'admin@ezmarketing.agency', role: 'agency_admin', agencyId: 'a1', createdAt: '2023-01-01' },
-    redirect: APP_CONFIG.routes.adminHome,
-    password: 'dactrah123',
-  },
-  'admin@ezmarketing.agency': {
-    user: { id: 'tm1', name: 'Agency Admin', email: 'admin@ezmarketing.agency', role: 'agency_admin', agencyId: 'a1', createdAt: '2023-01-01' },
-    redirect: APP_CONFIG.routes.adminHome,
-    password: 'dactrah123',
-  },
-  dactrah_team: {
-    user: { id: 'tm3', name: 'Omar Tarek', email: 'team@ezmarketing.agency', role: 'editor', agencyId: 'a1', createdAt: '2023-02-10' },
-    redirect: APP_CONFIG.routes.editorHome,
-    password: 'dactrah123',
-  },
-  'team@ezmarketing.agency': {
-    user: { id: 'tm3', name: 'Omar Tarek', email: 'team@ezmarketing.agency', role: 'editor', agencyId: 'a1', createdAt: '2023-02-10' },
-    redirect: APP_CONFIG.routes.editorHome,
-    password: 'dactrah123',
-  },
-  dactrah_client: {
-    user: { id: 'client1', name: 'Client Portal', email: 'client@ezmarketing.agency', role: 'client', agencyId: 'a1', createdAt: '2024-01-15' },
-    redirect: APP_CONFIG.routes.clientHome,
-    password: 'dactrah123',
-  },
-  'client@ezmarketing.agency': {
-    user: { id: 'client1', name: 'Client Portal', email: 'client@ezmarketing.agency', role: 'client', agencyId: 'a1', createdAt: '2024-01-15' },
-    redirect: APP_CONFIG.routes.clientHome,
-    password: 'dactrah123',
-  },
-  dactrah_accountant: {
-    user: { id: 'tm6', name: 'Finance Manager', email: 'finance@ezmarketing.agency', role: 'accountant', agencyId: 'a1', createdAt: '2023-05-01' },
-    redirect: APP_CONFIG.routes.accountantHome,
-    password: 'dactrah123',
-  },
-  'finance@ezmarketing.agency': {
-    user: { id: 'tm6', name: 'Finance Manager', email: 'finance@ezmarketing.agency', role: 'accountant', agencyId: 'a1', createdAt: '2023-05-01' },
-    redirect: APP_CONFIG.routes.accountantHome,
-    password: 'dactrah123',
-  },
-}
+const AUTH_UNAVAILABLE =
+  'Authentication is not configured. Set VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, ' +
+  'and VITE_ENABLE_REAL_AUTH=true, then reload.'
 
 // ─── Role → redirect map ──────────────────────────────────────────────────────
 
@@ -261,7 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ─── Supabase Auth listener ──────────────────────────────────────────────────
   useEffect(() => {
     if (!isSupabaseReady || !supabase || !APP_CONFIG.features.realAuth) {
-      dbg('seed/demo mode — no Supabase auth')
+      dbg('Supabase auth not configured — no session listener')
       setIsLoading(false)
       return
     }
@@ -324,63 +302,102 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const key = identifier.toLowerCase().trim()
       setAuthError(null)
 
-      // ── Mode 1: Real Supabase auth ─────────────────────────────────────────
-      if (isSupabaseReady && supabase && APP_CONFIG.features.realAuth) {
-        // A full email address is always used verbatim. A bare username ("admin")
-        // is expanded to the agency domain — and, for accounts created before the
-        // EZ Marketing Agency rebrand, retried against the legacy domain.
-        // See APP_CONFIG.auth.legacyEmailDomain for the migration path.
-        const { emailDomain, legacyEmailDomain } = APP_CONFIG.auth
-        const candidates = key.includes('@')
-          ? [key]
-          : [`${key}@${emailDomain}`, ...(legacyEmailDomain ? [`${key}@${legacyEmailDomain}`] : [])]
-
-        let authedUser: { id: string; email?: string } | null = null
-        let lastError: Error | null = null
-
-        for (const email of candidates) {
-          const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-
-          if (!error && data.user) {
-            authedUser = data.user
-            lastError = null
-            break
-          }
-
-          lastError = new Error(error?.message ?? 'Login failed — no user returned.')
-
-          // Only fall through to the legacy domain when the credentials were
-          // rejected (400). Stop on rate limits, network faults, or unconfirmed
-          // emails so those surface instead of burning a second auth attempt.
-          if (error && error.status !== 400) break
-        }
-
-        if (!authedUser) throw lastError ?? new Error('Login failed — no user returned.')
-
-        // Fetch profile directly (onAuthStateChange will also fire, but this gives us
-        // the redirect URL immediately and triggers auto-recovery if needed)
-        const appUser = await fetchProfile(authedUser.id, authedUser.email)
-        if (!appUser) {
-          await supabase.auth.signOut()
-          throw new Error(
-            'Your profile could not be loaded. ' +
-              'Visit /debug/auth to diagnose, or contact your administrator.'
-          )
-        }
-
-        setUser(appUser)
-        return { redirect: getRedirectForRole(appUser.role) }
+      if (!isSupabaseReady || !supabase || !APP_CONFIG.features.realAuth) {
+        throw new Error(AUTH_UNAVAILABLE)
       }
 
-      // ── Mode 2: Seed/demo fallback ─────────────────────────────────────────
-      await new Promise((r) => setTimeout(r, 600))
+      // A full email address is always used verbatim. A bare username ("admin")
+      // is expanded to the agency domain — and, for accounts created before the
+      // EZ Marketing Agency rebrand, retried against the legacy domain.
+      // See APP_CONFIG.auth.legacyEmailDomain for the migration path.
+      const { emailDomain, legacyEmailDomain } = APP_CONFIG.auth
+      const candidates = key.includes('@')
+        ? [key]
+        : [`${key}@${emailDomain}`, ...(legacyEmailDomain ? [`${key}@${legacyEmailDomain}`] : [])]
 
-      const match = SEED_USERS[key]
-      if (!match) throw new Error('User not found')
-      if (match.password !== password) throw new Error('Invalid credentials')
+      let authedUser: { id: string; email?: string } | null = null
+      let lastError: Error | null = null
 
-      setUser(match.user)
-      return { redirect: match.redirect }
+      for (const email of candidates) {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+
+        if (!error && data.user) {
+          authedUser = data.user
+          lastError = null
+          break
+        }
+
+        lastError = new Error(error?.message ?? 'Login failed — no user returned.')
+
+        // Only fall through to the legacy domain when the credentials were
+        // rejected (400). Stop on rate limits, network faults, or unconfirmed
+        // emails so those surface instead of burning a second auth attempt.
+        if (error && error.status !== 400) break
+      }
+
+      if (!authedUser) throw lastError ?? new Error('Login failed — no user returned.')
+
+      // Fetch profile directly (onAuthStateChange will also fire, but this gives us
+      // the redirect URL immediately and triggers auto-recovery if needed)
+      const appUser = await fetchProfile(authedUser.id, authedUser.email)
+      if (!appUser) {
+        await supabase.auth.signOut()
+        throw new Error(
+          'Your profile could not be loaded. ' +
+            'Visit /debug/auth to diagnose, or contact your administrator.'
+        )
+      }
+
+      setUser(appUser)
+      return { redirect: getRedirectForRole(appUser.role) }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  )
+
+  // ─── Signup ─────────────────────────────────────────────────────────────────
+  // Creates the account through Supabase Auth. The caller supplies the password;
+  // there is no default. `full_name` / `agency_name` ride along in user_metadata
+  // so the profiles trigger (or the fetchProfile recovery path) can pick them up.
+  const signup = useCallback(
+    async ({ email, password, fullName, agencyName }: SignupParams): Promise<SignupResult> => {
+      setAuthError(null)
+
+      if (!isSupabaseReady || !supabase || !APP_CONFIG.features.realAuth) {
+        throw new Error(AUTH_UNAVAILABLE)
+      }
+
+      const { data, error } = await supabase.auth.signUp({
+        email: email.toLowerCase().trim(),
+        password,
+        options: {
+          data: {
+            full_name: fullName?.trim() || undefined,
+            agency_name: agencyName?.trim() || undefined,
+          },
+        },
+      })
+
+      if (error) throw new Error(error.message)
+      if (!data.user) throw new Error('Sign-up failed — no user returned.')
+
+      // With "Confirm email" enabled, Supabase returns a user but no session.
+      // The account exists; the user must confirm before they can sign in.
+      if (!data.session) {
+        return { redirect: APP_CONFIG.routes.login, needsEmailConfirmation: true }
+      }
+
+      const appUser = await fetchProfile(data.user.id, data.user.email)
+      if (!appUser) {
+        await supabase.auth.signOut()
+        throw new Error(
+          'Your account was created, but the profile could not be loaded. ' +
+            'Sign in again, or visit /debug/auth to diagnose.'
+        )
+      }
+
+      setUser(appUser)
+      return { redirect: getRedirectForRole(appUser.role), needsEmailConfirmation: false }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -403,6 +420,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         authError,
         login,
+        signup,
         logout,
         role: user?.role ?? null,
       }}

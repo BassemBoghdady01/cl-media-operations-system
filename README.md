@@ -24,18 +24,31 @@ Open [http://localhost:5173](http://localhost:5173)
 
 ---
 
-## Seed Mode (Default)
+## Authentication
 
-Out of the box, the app runs in **seed mode** — no backend required.
+Authentication is handled entirely by **Supabase Auth**. There are no built-in
+demo or seed credentials — accounts must exist in your Supabase project.
 
-Sign in with any of these credentials (case-sensitive):
+Requires `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and
+`VITE_ENABLE_REAL_AUTH=true`. Without them, login and signup fail with a
+configuration error rather than falling back to hardcoded accounts.
 
-| Username | Password | Role | Redirects to |
-|----------|----------|------|-------------|
-| `dactrah_admin` | `dactrah123` | Admin | `/app/dashboard` |
-| `dactrah_team` | `dactrah123` | Editor | `/app/pipeline` |
-| `dactrah_client` | `dactrah123` | Client | `/client` |
-| `dactrah_accountant` | `dactrah123` | Accountant | `/app/billing` |
+**Sign-in accepts:**
+
+| Input | Resolves to |
+|-------|-------------|
+| Full email (`omar@ezmarketing.agency`) | used verbatim |
+| Bare username (`omar`) | `omar@ezmarketing.agency`, then `omar@cl.agency` on rejection |
+
+The `@cl.agency` retry is temporary backward compatibility for accounts created
+before the rebrand — see **HANDOVER.md → Email Domain Migration**.
+
+**Creating users:** invite via Supabase Dashboard → Authentication → Users, or
+use the in-app signup flow (`/signup`), which calls `supabase.auth.signUp()`.
+
+> Seed data still drives dashboards, clients, and billing views while
+> `VITE_DEMO_MODE=true`. That is display data only — it has never been part of
+> the auth path. See `DEMO_REMOVAL_GUIDE.md`.
 
 ---
 
