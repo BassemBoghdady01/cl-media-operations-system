@@ -23,22 +23,25 @@ A complete end-to-end **Media Operations Platform** for content agencies.
 | **Tasks** | Kanban-style task management with video/client linking |
 | **Bookings** | Shoot scheduling with shot lists and team assignment |
 | **Analytics** | Revenue, video status, and platform distribution charts |
-| **Notifications** | In-app notification system |
-| **Client Portal** | Separate secure portal for clients to view their content, calendar, invoices, and packages |
+| **Notifications** | Real in-app notifications (payment reminders, task deadlines, shoot reminders, review events) |
+| **Client Portal** | Separate secure portal for clients to view their content, calendar, invoices, packages **and their own billing** |
+| **Finance** | Full ERP finance layer: unified ledger, revenue/expenses, subscriptions & billing cycles, payment reminders, payroll, receivables, cash flow, profitability, P&L reports, expense approvals, monthly close, receipts storage — see `FINANCE_MODULE.md` |
+| **User Management** | `/app/users` + `/app/roles`: invite/create users via a secure server API, change roles, deactivate, assign clients/projects, per-user permission overrides, full permission matrix — see `ROLES_AND_PERMISSIONS.md` |
+| **Audit Log** | `/app/audit`: every sensitive change recorded by database triggers |
 
 ---
 
 ## User Roles
 
-| Role | What they can access |
-|------|---------------------|
-| `owner` / `admin` | Full system access |
-| `project_manager` | Clients, projects, videos, tasks, calendar, bookings |
-| `editor` | Assigned videos and tasks |
-| `social_media_manager` | Calendar, content scheduling |
-| `accountant` | Packages and billing only |
-| `client` | Client portal — their own content only |
-| `creator` | Assigned videos only |
+**21 canonical roles, 48 permissions** — the full model (levels, grants,
+Super Admin protection, per-user overrides) is documented in
+`ROLES_AND_PERMISSIONS.md` and visible in-app at `/app/roles`.
+Highlights: `super_admin` (everything), `agency_admin` (everything except
+payroll), `finance_manager` (full finance incl. payroll), `hr_manager`
+(payroll + users, no revenue), `accountant` (bookkeeping, no payroll/close),
+plus operational and production roles down to `viewer` and `client`
+(portal only). Legacy values (`owner`, `admin`, `editor`, `creator`,
+`social_manager`) are still accepted and normalised.
 
 ---
 
@@ -63,6 +66,18 @@ A complete end-to-end **Media Operations Platform** for content agencies.
 | `/app/booking` | Shoot bookings |
 | `/app/notifications` | Notifications |
 | `/app/settings` | Settings |
+| `/app/onboarding` | Production setup checklist (real completeness tracking) |
+| `/app/users` | User management (invite, roles, deactivate, overrides) |
+| `/app/roles` | Roles & permission matrix |
+| `/app/audit` | Audit log viewer |
+| `/app/finance` | Finance overview |
+| `/app/finance/revenue` · `/expenses` | Income / expense ledger |
+| `/app/finance/subscriptions` (+`/:id`) | Subscriptions, billing cycles, reminders |
+| `/app/finance/payroll` | Compensation & payroll runs |
+| `/app/finance/receivables` · `/cashflow` · `/profitability` | Receivables, cash flow, profitability |
+| `/app/finance/reports` (+`/month-close`) | P&L & analysis, monthly close |
+| `/app/finance/approvals` | Expense approval queue |
+| `/app/finance/settings` | Accounts, categories, services, targets, recurring expenses |
 
 ### Client Portal (`/client/*`)
 | Route | Page |
@@ -73,6 +88,7 @@ A complete end-to-end **Media Operations Platform** for content agencies.
 | `/client/bookings` | Client's bookings |
 | `/client/assets` | Client's brand assets |
 | `/client/package` | Client's package & usage |
+| `/client/finance` | Client's billing: subscription, next payment, cycle history, paid/remaining |
 | `/client/invoices` | Client's invoices |
 
 ---
@@ -84,9 +100,12 @@ A complete end-to-end **Media Operations Platform** for content agencies.
    - `supabase/schema.sql`
    - `supabase/rls-policies.sql`
    - `supabase/storage.sql`
-   - `supabase/seed.sql` (optional)
-3. Create auth users in Dashboard → Authentication → Users
-4. Update profile roles via SQL (see `supabase/README.md`)
+   - `supabase/seed.sql` (**local development only — never in production**)
+3. Run the migrations in `supabase/migrations/` in the exact order given in
+   `PRODUCTION_MIGRATION.md` (bootstrap fix → 002 → … → 009)
+4. Promote the first Super Admin (SQL one-liner in `PRODUCTION_MIGRATION.md`)
+5. Create further users **from inside the app** at `/app/users` (secure
+   server-side API) — no Dashboard SQL needed anymore
 
 ---
 
@@ -99,10 +118,11 @@ A complete end-to-end **Media Operations Platform** for content agencies.
 |----------|--------------|-------------|
 | `VITE_SUPABASE_URL` | Frontend | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Frontend | Supabase anon key |
-| `VITE_ENABLE_REAL_AUTH` | Frontend | Set `true` to use Supabase auth |
-| `VITE_DEMO_MODE` | Frontend | Set `false` for production |
+| `VITE_ENABLE_REAL_AUTH` | Frontend | Must be `true` |
 | `VITE_ENABLE_AI` | Frontend | Set `true` to enable AI Studio |
 | `VITE_APP_URL` | Frontend | Your Vercel URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Server-side only** | Admin user API + cron (no VITE_ prefix!) |
+| `CRON_SECRET` | **Server-side only** | Protects `/api/cron/finance-reminders` |
 | `OPENAI_API_KEY` | **Server-side only** | OpenAI API key (no VITE_ prefix!) |
 
 3. Build settings:
@@ -133,6 +153,7 @@ Created by `supabase/storage.sql`:
 | `final-deliveries` | Final exported videos | No |
 | `thumbnails` | Video preview images | Yes |
 | `invoices` | Invoice PDFs | No |
+| `finance-attachments` | Expense receipts & payment proofs (migration 009; permission-gated, signed URLs) | No |
 
 ---
 
@@ -149,13 +170,10 @@ Created by `supabase/storage.sql`:
 
 ## How to Create Team Users
 
-1. Invite user via Supabase Dashboard → Authentication → Users → Invite
-2. Once they accept, update their profile:
-```sql
-UPDATE profiles
-SET agency_id = 'your-agency-uuid', role = 'editor', full_name = 'Their Name'
-WHERE email = 'their@email.com';
-```
+Go to **/app/users → Invite user** (requires `users.create`): enter email,
+name, role and optional department. The secure server API creates the auth
+user and profile, and shows a one-time temporary password. Role changes and
+deactivation happen on the same page. No Dashboard SQL is needed.
 
 ---
 
@@ -211,25 +229,28 @@ one extra failed auth call.
 
 ---
 
-## How to Remove Seed Mode
+## Demo Data — Removed
 
-See `DEMO_REMOVAL_GUIDE.md` for complete instructions.
-
-Quick version:
-1. Set `VITE_DEMO_MODE=false`
-2. Set `VITE_ENABLE_REAL_AUTH=true`
-3. Configure Supabase
-4. Delete `src/data/seed/` after everything works
+The application contains **no demo runtime data**. Every page loads real
+Supabase rows, failures show an honest error state, and empty tables render
+empty states — never fabricated activity. The old fixtures were moved to
+`src/dev/fixtures/` for reference and are imported by nothing in production
+(`supabase/seed.sql` likewise is for local development only).
 
 ---
 
 ## Known Limitations
 
-1. **No real-time updates** — Data refreshes on page navigation, not live
+1. **No real-time updates** — Data refreshes on page navigation plus a slow
+   notification poll; Supabase Realtime can be added later
 2. **No video player** — Video preview shows metadata only (use an external player URL)
-3. **No email notifications** — Supabase Edge Functions can add these later
-4. **No multi-agency UI** — Super admin panel for managing multiple agencies not built
-5. **AI fallback** — When AI is disabled, the AI Studio shows template-based results
+3. **No email/WhatsApp sending** — Payment reminders are in-app only and are
+   labelled "In-App Only"; the reminder rows already model other channels for
+   a future integration
+4. **No multi-currency conversion** — Totals are always per-currency; nothing
+   is summed across currencies until an exchange-rate table exists
+5. **No multi-agency UI** — Super admin panel for managing multiple agencies not built
+6. **AI fallback** — When AI is disabled, the AI Studio shows template-based results
 
 ---
 

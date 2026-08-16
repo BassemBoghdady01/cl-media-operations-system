@@ -1,20 +1,68 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Search, Plus, Filter, Users, Film, Package, MoreHorizontal, TrendingUp } from 'lucide-react'
-import { mockClients, mockPackages, mockVideos } from '../../data/mockData'
+import { Search, Plus, Users, Film, Package as PackageIcon, TrendingUp } from 'lucide-react'
+import { useAuth } from '../../contexts/AuthContext'
+import PageErrorState from '../../components/system/PageErrorState'
+import { clientService } from '../../services/clientService'
+import { packageService } from '../../services/packageService'
+import { videoService } from '../../services/videoService'
 import { statusColors, getInitials, formatCurrency } from '../../lib/utils'
-import type { Client } from '../../types'
+import type { Client, Package, Video } from '../../types'
 
-const industries = ['All', 'Fashion & Lifestyle', 'Food & Beverage', 'Technology', 'Hospitality', 'Health & Fitness', 'Fashion & Retail']
 const statuses = ['All', 'active', 'paused', 'inactive']
 
 export default function ClientsPage() {
+  const { user, agency } = useAuth()
+  const agencyId = user?.agencyId || agency?.id || ''
+
+  const [clients, setClients] = useState<Client[]>([])
+  const [packages, setPackages] = useState<Package[]>([])
+  const [videos, setVideos] = useState<Video[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+
   const [search, setSearch] = useState('')
   const [industry, setIndustry] = useState('All')
   const [status, setStatus] = useState('All')
 
-  const filtered = mockClients.filter((c) => {
+  useEffect(() => {
+    if (!agencyId) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const [clientData, packageData, videoData] = await Promise.all([
+          clientService.getAll(agencyId),
+          packageService.getAll(agencyId),
+          videoService.getAll(agencyId),
+        ])
+        if (cancelled) return
+        setClients(clientData)
+        setPackages(packageData)
+        setVideos(videoData)
+      } catch (err) {
+        if (cancelled) return
+        console.error('[ClientsPage] load failed', err)
+        setError(err instanceof Error ? err.message : 'Could not load clients.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [agencyId, reloadKey])
+
+  const industries = ['All', ...new Set(clients.map((c) => c.industry).filter(Boolean))]
+
+  const filtered = clients.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.brandName.toLowerCase().includes(search.toLowerCase()) ||
       c.contactName.toLowerCase().includes(search.toLowerCase())
@@ -23,11 +71,33 @@ export default function ClientsPage() {
     return matchSearch && matchIndustry && matchStatus
   })
 
-  const getClientVideos = (id: string) => mockVideos.filter((v) => v.clientId === id).length
-  const getClientPackage = (id: string) => mockPackages.find((p) => p.clientId === id)
+  const getClientVideos = (id: string) => videos.filter((v) => v.clientId === id).length
+  const getClientPackage = (id: string) =>
+    packages.find((p) => p.clientId === id && p.status === 'active') ??
+    packages.find((p) => p.clientId === id)
 
-  const activeCount = mockClients.filter((c) => c.status === 'active').length
-  const totalRevenue = mockPackages.reduce((s, p) => s + p.monthlyPrice, 0)
+  const activeCount = clients.filter((c) => c.status === 'active').length
+  const activePackages = packages.filter((p) => p.status === 'active')
+  const totalRevenue = activePackages.reduce((s, p) => s + p.monthlyPrice, 0)
+
+  const now = new Date()
+  const videosThisMonth = videos.filter((v) => {
+    const d = new Date(v.createdAt)
+    return !Number.isNaN(d.getTime()) &&
+      d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+  }).length
+
+  if (error) {
+    return (
+      <div className="p-6 lg:p-8">
+        <PageErrorState
+          title="We couldn't load your clients"
+          message={error}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      </div>
+    )
+  }
 
   return (
     <motion.div
@@ -39,7 +109,7 @@ export default function ClientsPage() {
       <div className="flex items-start justify-between flex-wrap gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-black text-white">Clients</h1>
-          <p className="text-slate-400 text-sm mt-1">{activeCount} active · {mockClients.length} total</p>
+          <p className="text-slate-400 text-sm mt-1">{activeCount} active · {clients.length} total</p>
         </div>
         <button className="btn-primary text-sm">
           <Plus className="w-4 h-4" /> Add Client
@@ -50,9 +120,9 @@ export default function ClientsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'Active Clients', value: activeCount, icon: Users, color: '#3B82F6' },
-          { label: 'Total Videos This Month', value: mockVideos.length, icon: Film, color: '#8B5CF6' },
+          { label: 'Total Videos This Month', value: videosThisMonth, icon: Film, color: '#8B5CF6' },
           { label: 'Monthly Revenue', value: formatCurrency(totalRevenue), icon: TrendingUp, color: '#10B981' },
-          { label: 'Active Packages', value: mockPackages.filter((p) => p.status === 'active').length, icon: Package, color: '#F59E0B' },
+          { label: 'Active Packages', value: activePackages.length, icon: PackageIcon, color: '#F59E0B' },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="glass-blue rounded-xl p-4 flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -82,99 +152,119 @@ export default function ClientsPage() {
         </select>
       </div>
 
-      {/* Client grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filtered.map((client, i) => {
-          const pkg = getClientPackage(client.id)
-          const videoCount = getClientVideos(client.id)
-          const pct = pkg ? Math.round((pkg.consumedVideos / pkg.includedVideos) * 100) : 0
-          const sc = statusColors[client.status]
-          const needsAttention = pct >= 90
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-24">
+          <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+        </div>
+      )}
 
-          return (
-            <motion.div
-              key={client.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.06 }}
-              whileHover={{ y: -2 }}
-              className="glass glass-hover rounded-2xl p-5 cursor-pointer group">
-              <Link to={`/app/clients/${client.id}`} className="block">
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
-                      style={{ background: `linear-gradient(135deg, ${client.color}, ${client.color}88)` }}>
-                      {getInitials(client.brandName)}
+      {/* Empty */}
+      {!loading && clients.length === 0 && (
+        <div className="text-center py-20">
+          <Users className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+          <p className="text-slate-400 text-sm font-medium">No clients yet</p>
+          <p className="text-slate-600 text-xs mt-1">Clients you add will appear here.</p>
+        </div>
+      )}
+
+      {/* Client grid */}
+      {!loading && clients.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filtered.map((client, i) => {
+            const pkg = getClientPackage(client.id)
+            const videoCount = getClientVideos(client.id)
+            const pct = pkg && pkg.includedVideos > 0
+              ? Math.round((pkg.consumedVideos / pkg.includedVideos) * 100)
+              : 0
+            const sc = statusColors[client.status]
+            const needsAttention = !!pkg && pct >= 90
+
+            return (
+              <motion.div
+                key={client.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06 }}
+                whileHover={{ y: -2 }}
+                className="glass glass-hover rounded-2xl p-5 cursor-pointer group">
+                <Link to={`/app/clients/${client.id}`} className="block">
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+                        style={{ background: `linear-gradient(135deg, ${client.color}, ${client.color}88)` }}>
+                        {getInitials(client.brandName)}
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-white leading-tight">{client.brandName}</h3>
+                        <p className="text-[11px] text-slate-500">{client.industry || '—'}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-white leading-tight">{client.brandName}</h3>
-                      <p className="text-[11px] text-slate-500">{client.industry}</p>
+                    <div className="flex items-center gap-2">
+                      {needsAttention && (
+                        <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Package limit approaching" />
+                      )}
+                      <span className="badge" style={{ background: sc?.bg, color: sc?.text }}>
+                        {client.status}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {needsAttention && (
-                      <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Package limit approaching" />
-                    )}
-                    <span className="badge" style={{ background: sc.bg, color: sc.text }}>
-                      {client.status}
+
+                  {/* Contact */}
+                  <div className="text-[11px] text-slate-500 mb-4">
+                    {[client.contactName, client.email].filter(Boolean).join(' · ') || 'No contact details'}
+                  </div>
+
+                  {/* Stats row */}
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="text-center">
+                      <div className="text-base font-black text-white">{videoCount}</div>
+                      <div className="text-[10px] text-slate-500">Videos</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-base font-black text-white">{pkg?.includedVideos ?? '—'}</div>
+                      <div className="text-[10px] text-slate-500">Package</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-base font-black" style={{ color: pkg ? (pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : '#10B981') : '#64748B' }}>
+                        {pkg ? `${pkg.includedVideos - pkg.consumedVideos}` : '—'}
+                      </div>
+                      <div className="text-[10px] text-slate-500">Remaining</div>
+                    </div>
+                  </div>
+
+                  {/* Package bar */}
+                  {pkg && (
+                    <div>
+                      <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+                        <span>{pkg.name}</span>
+                        <span>{pct}%</span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        <div className="h-full rounded-full transition-all duration-700"
+                          style={{ width: `${Math.min(100, pct)}%`, background: pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : client.color }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Portal badge */}
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-[10px]" style={{ color: client.portalAccess ? '#10B981' : '#64748B' }}>
+                      {client.portalAccess ? '✓ Portal Active' : '○ Portal Inactive'}
+                    </span>
+                    <span className="text-[10px] text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                      View profile →
                     </span>
                   </div>
-                </div>
+                </Link>
+              </motion.div>
+            )
+          })}
+        </div>
+      )}
 
-                {/* Contact */}
-                <div className="text-[11px] text-slate-500 mb-4">
-                  {client.contactName} · {client.email}
-                </div>
-
-                {/* Stats row */}
-                <div className="grid grid-cols-3 gap-3 mb-4">
-                  <div className="text-center">
-                    <div className="text-base font-black text-white">{videoCount}</div>
-                    <div className="text-[10px] text-slate-500">Videos</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-base font-black text-white">{pkg?.includedVideos ?? '—'}</div>
-                    <div className="text-[10px] text-slate-500">Package</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-base font-black" style={{ color: pkg ? (pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : '#10B981') : '#64748B' }}>
-                      {pkg ? `${pkg.includedVideos - pkg.consumedVideos}` : '—'}
-                    </div>
-                    <div className="text-[10px] text-slate-500">Remaining</div>
-                  </div>
-                </div>
-
-                {/* Package bar */}
-                {pkg && (
-                  <div>
-                    <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-                      <span>{pkg.name}</span>
-                      <span>{pct}%</span>
-                    </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                      <div className="h-full rounded-full transition-all duration-700"
-                        style={{ width: `${pct}%`, background: pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : client.color }} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Portal badge */}
-                <div className="mt-3 flex items-center justify-between">
-                  <span className="text-[10px]" style={{ color: client.portalAccess ? '#10B981' : '#64748B' }}>
-                    {client.portalAccess ? '✓ Portal Active' : '○ Portal Inactive'}
-                  </span>
-                  <span className="text-[10px] text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                    View profile →
-                  </span>
-                </div>
-              </Link>
-            </motion.div>
-          )
-        })}
-      </div>
-
-      {filtered.length === 0 && (
+      {!loading && clients.length > 0 && filtered.length === 0 && (
         <div className="text-center py-16">
           <Users className="w-12 h-12 text-slate-700 mx-auto mb-3" />
           <p className="text-slate-500">No clients match your filters.</p>

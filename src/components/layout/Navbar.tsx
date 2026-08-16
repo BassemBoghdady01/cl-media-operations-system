@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, ChevronDown, Plus, Sparkles, Film, Users } from 'lucide-react'
-import { mockNotifications } from '../../data/mockData'
+import { Search, Bell, Plus } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { timeAgo, getInitials } from '../../lib/utils'
+import { useNotifications } from '../../hooks/useNotifications'
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/app/dashboard': { title: 'Dashboard', subtitle: 'EZ Marketing Agency — Your media operations command center' },
@@ -14,37 +14,53 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/app/ai': { title: 'AI Studio', subtitle: 'AI-powered content and script tools' },
   '/app/assets': { title: 'Asset Library', subtitle: 'Brand assets, files, and media' },
   '/app/team': { title: 'Team', subtitle: 'Team members, workload, and performance' },
+  '/app/users': { title: 'User Management', subtitle: 'Accounts, roles and access' },
+  '/app/roles': { title: 'Roles & Permissions', subtitle: 'What each role can see and do' },
+  '/app/audit': { title: 'Audit Log', subtitle: 'Every sensitive change, recorded' },
   '/app/tasks': { title: 'Tasks', subtitle: 'All tasks across clients and projects' },
   '/app/packages': { title: 'Packages', subtitle: 'Client subscriptions and package tracking' },
-  '/app/billing': { title: 'Billing', subtitle: 'Invoices and payment management' },
+  '/app/billing': { title: 'Invoices', subtitle: 'Invoices and payment management' },
   '/app/analytics': { title: 'Analytics', subtitle: 'Performance metrics and insights' },
   '/app/notifications': { title: 'Notifications', subtitle: 'Alerts and activity updates' },
   '/app/settings': { title: 'Settings', subtitle: 'Agency profile and configuration' },
   '/app/booking': { title: 'Shooting Bookings', subtitle: 'Studio sessions and on-location schedules' },
+  '/app/onboarding': { title: 'Setup', subtitle: 'Get your workspace production-ready' },
+  '/app/finance/subscriptions': { title: 'Subscriptions', subtitle: 'Recurring client billing' },
+  '/app/finance/payroll': { title: 'Payroll', subtitle: 'Compensation and salary runs' },
+  '/app/finance/cashflow': { title: 'Cash Flow', subtitle: 'Money in, money out, by account' },
+  '/app/finance/reports': { title: 'Reports', subtitle: 'P&L and financial analysis' },
+  '/app/finance/approvals': { title: 'Expense Approvals', subtitle: 'Review and approve spending' },
+  '/app/finance/settings': { title: 'Finance Settings', subtitle: 'Accounts, categories, services and targets' },
+  '/app/finance': { title: 'Finance', subtitle: 'Real financial position from the ledger' },
+}
+
+const notifIcons: Record<string, string> = {
+  video_review: '🎬',
+  revision_request: '🔄',
+  approval: '✅',
+  invoice: '💰',
+  package_limit: '📦',
+  task: '✅',
+  comment: '💬',
+  shooting: '📷',
+  file: '📎',
+  scheduled: '📅',
+  posted: '🚀',
 }
 
 export default function Navbar() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
   const [showNotifs, setShowNotifs] = useState(false)
   const [searchFocused, setSearchFocused] = useState(false)
+  const { items, unread, markRead } = useNotifications(8)
 
-  const pathKey = Object.keys(pageTitles).find((k) => location.pathname.startsWith(k)) ?? '/app/dashboard'
-  const { title, subtitle } = pageTitles[pathKey] ?? { title: 'EZ Marketing Agency', subtitle: '' }
-  const unread = mockNotifications.filter((n) => !n.isRead)
-
-  const notifIcons: Record<string, string> = {
-    video_review: '🎬',
-    revision_request: '🔄',
-    approval: '✅',
-    invoice: '💰',
-    package_limit: '📦',
-    task: '✅',
-    comment: '💬',
-    scheduled: '📅',
-    posted: '🚀',
-  }
+  // Longest-prefix match so /app/finance/payroll beats /app/finance.
+  const pathKey = Object.keys(pageTitles)
+    .filter((k) => location.pathname.startsWith(k))
+    .sort((a, b) => b.length - a.length)[0]
+  const { title, subtitle } = (pathKey ? pageTitles[pathKey] : undefined) ?? { title: 'EZ Marketing Agency', subtitle: '' }
 
   return (
     <header className="h-16 flex items-center px-6 gap-4 flex-shrink-0"
@@ -68,10 +84,12 @@ export default function Navbar() {
       </div>
 
       {/* Quick add */}
-      <button className="btn-primary text-xs py-2 px-4 hidden sm:flex">
-        <Plus className="w-3.5 h-3.5" />
-        New Video
-      </button>
+      {hasPermission('videos.manage') && (
+        <button onClick={() => navigate('/app/pipeline')} className="btn-primary text-xs py-2 px-4 hidden sm:flex">
+          <Plus className="w-3.5 h-3.5" />
+          New Video
+        </button>
+      )}
 
       {/* Notifications */}
       <div className="relative">
@@ -80,10 +98,10 @@ export default function Navbar() {
           className="relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:bg-white/[0.06]"
           style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
           <Bell className="w-4 h-4 text-slate-400" />
-          {unread.length > 0 && (
+          {unread > 0 && (
             <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
               style={{ background: 'linear-gradient(135deg, #EF4444, #DC2626)' }}>
-              {unread.length}
+              {unread > 9 ? '9+' : unread}
             </span>
           )}
         </button>
@@ -103,17 +121,25 @@ export default function Navbar() {
                   <span className="text-sm font-semibold text-white">Notifications</span>
                   <span className="px-2 py-0.5 rounded-full text-xs font-medium text-blue-400"
                     style={{ background: 'rgba(59,130,246,0.15)' }}>
-                    {unread.length} new
+                    {unread} new
                   </span>
                 </div>
                 <div className="max-h-96 overflow-y-auto">
-                  {mockNotifications.slice(0, 6).map((n, i) => (
+                  {items.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-xs text-slate-500">
+                      No notifications yet.
+                    </div>
+                  ) : items.map((n, i) => (
                     <motion.div
                       key={n.id}
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.05 }}
-                      onClick={() => { navigate(n.link ?? '/app/notifications'); setShowNotifs(false) }}
+                      onClick={() => {
+                        if (!n.isRead) markRead(n.id)
+                        navigate(n.link ?? '/app/notifications')
+                        setShowNotifs(false)
+                      }}
                       className={`px-4 py-3.5 cursor-pointer flex gap-3 items-start transition-colors hover:bg-white/[0.03] ${!n.isRead ? 'bg-blue-500/[0.04]' : ''}`}
                       style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                       <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm flex-shrink-0"
@@ -146,7 +172,7 @@ export default function Navbar() {
       {/* User avatar */}
       <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white cursor-pointer"
         style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-        {getInitials(user?.name ?? 'BM')}
+        {getInitials(user?.name ?? 'EZ')}
       </div>
     </header>
   )

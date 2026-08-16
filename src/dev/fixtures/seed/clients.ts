@@ -1,4 +1,4 @@
-import type { Client } from '../../types'
+import type { Client } from '../../../types'
 
 export const seedClients: Client[] = [
   {

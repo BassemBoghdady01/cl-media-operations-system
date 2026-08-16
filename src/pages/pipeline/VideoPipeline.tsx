@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Film, Search, Filter, Plus, ChevronDown, Calendar, User,
-  AlertTriangle, Clock, Instagram, Youtube, Linkedin,
+  Film, Search, Plus, Clock, Instagram, Youtube, Linkedin,
 } from 'lucide-react'
-import { mockVideos } from '../../data/mockData'
+import { useAuth } from '../../contexts/AuthContext'
+import PageErrorState from '../../components/system/PageErrorState'
+import { videoService } from '../../services/videoService'
 import { statusColors, priorityColors, platformLabels, getInitials } from '../../lib/utils'
 import type { VideoStatus, Video } from '../../types'
 
@@ -32,7 +33,6 @@ const platformIcon: Record<string, React.ReactNode> = {
 
 function VideoCard({ video }: { video: Video }) {
   const pc = priorityColors[video.priority]
-  const sc = statusColors[video.status]
   const isOverdue = new Date(video.dueDate) < new Date()
 
   return (
@@ -92,13 +92,62 @@ function VideoCard({ video }: { video: Video }) {
 }
 
 export default function VideoPipeline() {
+  const { user, agency } = useAuth()
+  const agencyId = user?.agencyId || agency?.id || ''
+
+  const [videos, setVideos] = useState<Video[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+
   const [search, setSearch] = useState('')
   const [selectedClient, setSelectedClient] = useState('All')
   const [view, setView] = useState<'board' | 'list'>('board')
 
-  const clients = ['All', ...new Set(mockVideos.map((v) => v.clientName))]
+  useEffect(() => {
+    if (!agencyId) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
 
-  const filtered = mockVideos.filter((v) => {
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await videoService.getAll(agencyId)
+        if (cancelled) return
+        setVideos(data)
+      } catch (err) {
+        if (cancelled) return
+        console.error('[VideoPipeline] load failed', err)
+        setError(err instanceof Error ? err.message : 'Could not load videos.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [agencyId, reloadKey])
+
+  // Drag a card onto a column to move it through the pipeline.
+  const moveVideo = async (videoId: string, status: VideoStatus) => {
+    const target = videos.find((v) => v.id === videoId)
+    if (!target || target.status === status) return
+    const previous = videos
+    setVideos((prev) => prev.map((v) => (v.id === videoId ? { ...v, status } : v)))
+    try {
+      await videoService.updateStatus(videoId, status)
+    } catch (err) {
+      console.error('[VideoPipeline] status update failed', err)
+      setVideos(previous)
+    }
+  }
+
+  const clients = ['All', ...new Set(videos.map((v) => v.clientName).filter(Boolean))]
+
+  const filtered = videos.filter((v) => {
     const matchSearch = v.title.toLowerCase().includes(search.toLowerCase()) ||
       v.clientName.toLowerCase().includes(search.toLowerCase())
     const matchClient = selectedClient === 'All' || v.clientName === selectedClient
@@ -106,6 +155,18 @@ export default function VideoPipeline() {
   })
 
   const getColumnVideos = (status: VideoStatus) => filtered.filter((v) => v.status === status)
+
+  if (error) {
+    return (
+      <div className="p-6 lg:p-8">
+        <PageErrorState
+          title="We couldn't load the video pipeline"
+          message={error}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      </div>
+    )
+  }
 
   return (
     <motion.div
@@ -117,7 +178,9 @@ export default function VideoPipeline() {
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-black text-white">Video Pipeline</h1>
-          <p className="text-slate-400 text-sm mt-1">{mockVideos.length} videos · {mockVideos.filter((v) => v.priority === 'urgent').length} urgent</p>
+          <p className="text-slate-400 text-sm mt-1">
+            {videos.length} videos · {videos.filter((v) => v.priority === 'urgent').length} urgent
+          </p>
         </div>
         <div className="flex gap-3">
           <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -151,8 +214,24 @@ export default function VideoPipeline() {
         </div>
       </div>
 
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-24">
+          <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+        </div>
+      )}
+
+      {/* Empty */}
+      {!loading && videos.length === 0 && (
+        <div className="text-center py-20">
+          <Film className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+          <p className="text-slate-400 text-sm font-medium">No videos yet</p>
+          <p className="text-slate-600 text-xs mt-1">Videos you create will appear here in the pipeline.</p>
+        </div>
+      )}
+
       {/* Board view */}
-      {view === 'board' && (
+      {!loading && videos.length > 0 && view === 'board' && (
         <div className="overflow-x-auto no-scrollbar pb-4">
           <div className="flex gap-3 min-w-max">
             {columns.map(({ id, label, color }) => {
@@ -173,10 +252,19 @@ export default function VideoPipeline() {
 
                   {/* Column body */}
                   <div className="min-h-24 rounded-xl p-2"
-                    style={{ background: `${color}06`, border: `1px solid ${color}15` }}>
+                    style={{ background: `${color}06`, border: `1px solid ${color}15` }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      const videoId = e.dataTransfer.getData('text/video-id')
+                      if (videoId) void moveVideo(videoId, id)
+                    }}>
                     <AnimatePresence>
                       {colVideos.map((v) => (
-                        <VideoCard key={v.id} video={v} />
+                        <div key={v.id} draggable
+                          onDragStart={(e) => e.dataTransfer.setData('text/video-id', v.id)}>
+                          <VideoCard video={v} />
+                        </div>
                       ))}
                     </AnimatePresence>
                     {colVideos.length === 0 && (
@@ -193,7 +281,7 @@ export default function VideoPipeline() {
       )}
 
       {/* List view */}
-      {view === 'list' && (
+      {!loading && videos.length > 0 && view === 'list' && (
         <div className="space-y-2">
           {filtered.map((v) => {
             const sc = statusColors[v.status]
@@ -224,6 +312,12 @@ export default function VideoPipeline() {
               </Link>
             )
           })}
+          {filtered.length === 0 && (
+            <div className="text-center py-16">
+              <Film className="w-10 h-10 text-slate-700 mx-auto mb-3" />
+              <p className="text-slate-500 text-sm">No videos match your filters.</p>
+            </div>
+          )}
         </div>
       )}
     </motion.div>

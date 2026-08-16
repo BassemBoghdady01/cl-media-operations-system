@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  CheckSquare, Plus, Search, Filter, Clock, AlertTriangle,
-  ChevronDown, User, Calendar, Tag, Check,
+  CheckSquare, Plus, Search, Clock, AlertTriangle, Check,
 } from 'lucide-react'
-import { mockTasks } from '../../data/mockData'
-import { statusColors, priorityColors, timeAgo, getInitials } from '../../lib/utils'
+import { useAuth } from '../../contexts/AuthContext'
+import PageErrorState from '../../components/system/PageErrorState'
+import { taskService } from '../../services/taskService'
+import { statusColors, priorityColors, getInitials } from '../../lib/utils'
 import type { Task } from '../../types'
 
 const STATUSES = ['todo', 'in_progress', 'waiting', 'done', 'blocked'] as const
@@ -16,9 +17,8 @@ const STATUS_COLORS: Record<string, string> = {
   todo: '#64748B', in_progress: '#3B82F6', waiting: '#F59E0B', done: '#10B981', blocked: '#EF4444',
 }
 
-function TaskCard({ task, i }: { task: Task; i: number }) {
+function TaskCard({ task, i, onToggle }: { task: Task; i: number; onToggle: (task: Task) => void }) {
   const pc = priorityColors[task.priority]
-  const sc = statusColors[task.status]
   const isOverdue = task.status !== 'done' && new Date(task.dueDate) < new Date()
 
   return (
@@ -32,10 +32,13 @@ function TaskCard({ task, i }: { task: Task; i: number }) {
       style={{ background: 'rgba(13,22,47,0.8)', border: '1px solid rgba(255,255,255,0.07)' }}>
 
       <div className="flex items-start gap-2.5 mb-2.5">
-        {/* Checkbox */}
-        <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 mt-0.5 transition-all ${task.status === 'done' ? 'bg-green-500' : 'border border-slate-600 hover:border-blue-400'}`}>
+        {/* Checkbox — toggles done via taskService */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggle(task) }}
+          aria-label={task.status === 'done' ? 'Mark as to do' : 'Mark as done'}
+          className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 mt-0.5 transition-all ${task.status === 'done' ? 'bg-green-500' : 'border border-slate-600 hover:border-blue-400'}`}>
           {task.status === 'done' && <Check className="w-2.5 h-2.5 text-white" />}
-        </div>
+        </button>
 
         <div className="flex-1 min-w-0">
           <p className={`text-xs font-semibold leading-snug ${task.status === 'done' ? 'line-through text-slate-600' : 'text-white'}`}>
@@ -62,39 +65,101 @@ function TaskCard({ task, i }: { task: Task; i: number }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5" style={{ color: isOverdue ? '#EF4444' : '#64748B' }}>
           <Clock className="w-3 h-3" />
-          <span className="text-[10px]">{task.dueDate}</span>
+          <span className="text-[10px]">{task.dueDate || 'No due date'}</span>
           {isOverdue && <AlertTriangle className="w-3 h-3" />}
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
-            style={{ background: task.assignedToColor }}>
-            {getInitials(task.assignedToName)}
+        {task.assignedToName && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
+              style={{ background: task.assignedToColor }}>
+              {getInitials(task.assignedToName)}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </motion.div>
   )
 }
 
 export default function TasksPage() {
+  const { user, agency } = useAuth()
+  const agencyId = user?.agencyId || agency?.id || ''
+
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+
   const [view, setView] = useState<'board' | 'list'>('board')
   const [search, setSearch] = useState('')
   const [filterPriority, setFilterPriority] = useState('All')
   const [filterAssignee, setFilterAssignee] = useState('All')
 
-  const filtered = mockTasks.filter((t) => {
+  useEffect(() => {
+    if (!agencyId) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await taskService.getAll(agencyId)
+        if (cancelled) return
+        setTasks(data)
+      } catch (err) {
+        if (cancelled) return
+        console.error('[TasksPage] load failed', err)
+        setError(err instanceof Error ? err.message : 'Could not load tasks.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [agencyId, reloadKey])
+
+  // Toggle done ↔ todo — optimistic, reverted if the write fails.
+  const toggleDone = async (task: Task) => {
+    const next: Task['status'] = task.status === 'done' ? 'todo' : 'done'
+    const previous = tasks
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: next } : t)))
+    try {
+      await taskService.updateStatus(task.id, next)
+    } catch (err) {
+      console.error('[TasksPage] status update failed', err)
+      setTasks(previous)
+    }
+  }
+
+  const filtered = tasks.filter((t) => {
     const matchSearch = t.title.toLowerCase().includes(search.toLowerCase())
     const matchPriority = filterPriority === 'All' || t.priority === filterPriority
     const matchAssignee = filterAssignee === 'All' || t.assignedToName === filterAssignee
     return matchSearch && matchPriority && matchAssignee
   })
 
-  const assignees = ['All', ...new Set(mockTasks.map((t) => t.assignedToName))]
+  const assignees = ['All', ...new Set(tasks.map((t) => t.assignedToName).filter(Boolean))]
   const getByStatus = (status: string) => filtered.filter((t) => t.status === status)
 
-  const done = mockTasks.filter((t) => t.status === 'done').length
-  const urgent = mockTasks.filter((t) => t.priority === 'urgent' && t.status !== 'done').length
-  const overdue = mockTasks.filter((t) => t.status !== 'done' && new Date(t.dueDate) < new Date()).length
+  const done = tasks.filter((t) => t.status === 'done').length
+  const urgent = tasks.filter((t) => t.priority === 'urgent' && t.status !== 'done').length
+  const overdue = tasks.filter((t) => t.status !== 'done' && new Date(t.dueDate) < new Date()).length
+
+  if (error) {
+    return (
+      <div className="p-6 lg:p-8">
+        <PageErrorState
+          title="We couldn't load your tasks"
+          message={error}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      </div>
+    )
+  }
 
   return (
     <motion.div
@@ -106,7 +171,7 @@ export default function TasksPage() {
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-black text-white">Tasks</h1>
-          <p className="text-slate-400 text-sm mt-1">{mockTasks.length} total · {done} done · {urgent} urgent · {overdue} overdue</p>
+          <p className="text-slate-400 text-sm mt-1">{tasks.length} total · {done} done · {urgent} urgent · {overdue} overdue</p>
         </div>
         <div className="flex gap-3">
           <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -127,7 +192,7 @@ export default function TasksPage() {
       {/* Quick stats */}
       <div className="flex flex-wrap gap-3 mb-5">
         {STATUSES.map((s) => {
-          const count = mockTasks.filter((t) => t.status === s).length
+          const count = tasks.filter((t) => t.status === s).length
           return (
             <div key={s} className="flex items-center gap-2 px-3 py-1.5 rounded-xl glass-blue">
               <div className="w-2 h-2 rounded-full" style={{ background: STATUS_COLORS[s] }} />
@@ -153,8 +218,24 @@ export default function TasksPage() {
         </select>
       </div>
 
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-24">
+          <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+        </div>
+      )}
+
+      {/* Empty */}
+      {!loading && tasks.length === 0 && (
+        <div className="text-center py-20">
+          <CheckSquare className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+          <p className="text-slate-400 text-sm font-medium">No tasks yet</p>
+          <p className="text-slate-600 text-xs mt-1">Tasks you create will appear here.</p>
+        </div>
+      )}
+
       {/* Board view */}
-      {view === 'board' && (
+      {!loading && tasks.length > 0 && view === 'board' && (
         <div className="overflow-x-auto pb-4 no-scrollbar">
           <div className="flex gap-4 min-w-max">
             {STATUSES.map((status) => {
@@ -176,7 +257,7 @@ export default function TasksPage() {
                     style={{ background: `${color}05`, border: `1px solid ${color}12` }}>
                     <AnimatePresence>
                       {colTasks.map((t, i) => (
-                        <TaskCard key={t.id} task={t} i={i} />
+                        <TaskCard key={t.id} task={t} i={i} onToggle={(task) => void toggleDone(task)} />
                       ))}
                     </AnimatePresence>
                     {colTasks.length === 0 && (
@@ -191,7 +272,7 @@ export default function TasksPage() {
       )}
 
       {/* List view */}
-      {view === 'list' && (
+      {!loading && tasks.length > 0 && view === 'list' && (
         <div className="glass-blue rounded-2xl overflow-hidden">
           <div className="flex items-center gap-4 px-4 py-3 text-[10px] font-bold text-slate-600 uppercase tracking-wide"
             style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
@@ -213,9 +294,12 @@ export default function TasksPage() {
                 className="flex items-center gap-4 px-4 py-3.5 hover:bg-white/[0.02] transition-colors"
                 style={{ borderBottom: i < filtered.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <div className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center ${t.status === 'done' ? 'bg-green-500' : 'border border-slate-700'}`}>
+                  <button
+                    onClick={() => void toggleDone(t)}
+                    aria-label={t.status === 'done' ? 'Mark as to do' : 'Mark as done'}
+                    className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center ${t.status === 'done' ? 'bg-green-500' : 'border border-slate-700 hover:border-blue-400'}`}>
                     {t.status === 'done' && <Check className="w-2.5 h-2.5 text-white" />}
-                  </div>
+                  </button>
                   <div className="min-w-0">
                     <p className={`text-sm font-medium truncate ${t.status === 'done' ? 'line-through text-slate-500' : 'text-white'}`}>{t.title}</p>
                     {t.clientName && <p className="text-[10px] text-slate-600">{t.clientName}</p>}
@@ -223,22 +307,31 @@ export default function TasksPage() {
                 </div>
                 <span className="badge text-[10px] w-20 justify-center" style={{ background: pc.bg, color: pc.text }}>{t.priority}</span>
                 <div className="hidden md:flex items-center gap-1.5 w-24">
-                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
-                    style={{ background: t.assignedToColor }}>
-                    {getInitials(t.assignedToName)}
-                  </div>
-                  <span className="text-[10px] text-slate-400 truncate">{t.assignedToName.split(' ')[0]}</span>
+                  {t.assignedToName ? (
+                    <>
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                        style={{ background: t.assignedToColor }}>
+                        {getInitials(t.assignedToName)}
+                      </div>
+                      <span className="text-[10px] text-slate-400 truncate">{t.assignedToName.split(' ')[0]}</span>
+                    </>
+                  ) : (
+                    <span className="text-[10px] text-slate-600">Unassigned</span>
+                  )}
                 </div>
                 <span className="badge text-[10px] w-24 justify-center" style={{ background: sc?.bg, color: sc?.text }}>
                   {STATUS_LABELS[t.status]}
                 </span>
                 <div className="hidden sm:flex items-center gap-1 w-24" style={{ color: isOverdue ? '#EF4444' : '#64748B' }}>
                   <Clock className="w-3 h-3" />
-                  <span className="text-[10px]">{t.dueDate}</span>
+                  <span className="text-[10px]">{t.dueDate || '—'}</span>
                 </div>
               </motion.div>
             )
           })}
+          {filtered.length === 0 && (
+            <p className="text-slate-500 text-sm text-center py-10">No tasks match your filters.</p>
+          )}
         </div>
       )}
     </motion.div>

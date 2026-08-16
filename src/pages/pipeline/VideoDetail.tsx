@@ -1,13 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  ArrowLeft, Film, CheckCircle, XCircle, MessageSquare, Clock,
-  Download, Send, Lock, AlertTriangle, ChevronRight, Play,
-  Instagram, Youtube, FileText, Sparkles,
+  ArrowLeft, Film, CheckCircle, XCircle, MessageSquare,
+  Download, Send, Lock, Play, FileText, Sparkles,
 } from 'lucide-react'
-import { mockVideos, mockComments } from '../../data/mockData'
+import { useAuth } from '../../contexts/AuthContext'
+import PageErrorState from '../../components/system/PageErrorState'
+import { videoService } from '../../services/videoService'
+import { notificationService } from '../../services/notificationService'
 import { statusColors, priorityColors, platformLabels, timeAgo, getInitials } from '../../lib/utils'
+import type { Video, Comment } from '../../types'
 
 const pipeline = [
   'idea', 'script', 'shooting', 'editing', 'internal_review',
@@ -22,11 +25,167 @@ const pipelineLabels: Record<string, string> = {
 
 export default function VideoDetail() {
   const { id } = useParams()
+  const { user, agency } = useAuth()
+  const agencyId = user?.agencyId || agency?.id || ''
+
+  const [video, setVideo] = useState<Video | null>(null)
+  const [comments, setComments] = useState<Comment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+
   const [newComment, setNewComment] = useState('')
+  const [posting, setPosting] = useState(false)
+  const [acting, setActing] = useState(false)
   const [activeTab, setActiveTab] = useState<'comments' | 'script' | 'delivery'>('comments')
 
-  const video = mockVideos.find((v) => v.id === id) ?? mockVideos[0]
-  const comments = mockComments.filter((c) => c.videoId === video.id)
+  useEffect(() => {
+    if (!id) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const [v, cs] = await Promise.all([
+          videoService.getById(id),
+          videoService.getComments(id),
+        ])
+        if (cancelled) return
+        setVideo(v ?? null)
+        setComments(cs)
+      } catch (err) {
+        if (cancelled) return
+        console.error('[VideoDetail] load failed', err)
+        setError(err instanceof Error ? err.message : 'Could not load this video.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [id, reloadKey])
+
+  const handleAddComment = async () => {
+    const raw = newComment.trim()
+    if (!raw || !video || !user || posting) return
+
+    // Optional leading timestamp like "0:12 fix the color here"
+    let timestamp: number | undefined
+    let text = raw
+    const m = /^(\d{1,3}):([0-5]\d)\s+(.+)$/s.exec(raw)
+    if (m) {
+      timestamp = parseInt(m[1], 10) * 60 + parseInt(m[2], 10)
+      text = m[3]
+    }
+
+    setPosting(true)
+    try {
+      const created = await videoService.addComment({
+        agencyId: video.agencyId || agencyId,
+        videoId: video.id,
+        userId: user.id,
+        text,
+        timestamp,
+      })
+      setComments((prev) => [...prev, created])
+      setNewComment('')
+    } catch (err) {
+      console.error('[VideoDetail] add comment failed', err)
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  const handleDecision = async (decision: 'approve' | 'revision') => {
+    if (!video || acting) return
+    setActing(true)
+    try {
+      const patch: Partial<Video> =
+        decision === 'approve'
+          ? { status: 'approved', approvalStatus: 'approved' }
+          : { status: 'revision', approvalStatus: 'rejected', revisionCount: video.revisionCount + 1 }
+
+      await videoService.update(video.id, patch)
+      setVideo({ ...video, ...patch })
+
+      // Notify the assigned editor about the review decision — non-fatal.
+      if (video.assignedEditor) {
+        try {
+          await notificationService.notify({
+            agencyId: video.agencyId || agencyId,
+            userId: video.assignedEditor,
+            type: decision === 'approve' ? 'approval' : 'revision_request',
+            title: decision === 'approve' ? 'Video approved' : 'Revision requested',
+            message:
+              decision === 'approve'
+                ? `"${video.title}" was approved.`
+                : `A revision was requested on "${video.title}".`,
+            link: `/app/pipeline/${video.id}`,
+          })
+        } catch (notifyErr) {
+          console.warn('[VideoDetail] notification failed', notifyErr)
+        }
+      }
+    } catch (err) {
+      console.error('[VideoDetail] review action failed', err)
+    } finally {
+      setActing(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6 lg:p-8">
+        <Link to="/app/pipeline" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6">
+          <ArrowLeft className="w-3.5 h-3.5" /> Video Pipeline
+        </Link>
+        <div className="flex items-center justify-center py-24">
+          <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 lg:p-8">
+        <Link to="/app/pipeline" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6">
+          <ArrowLeft className="w-3.5 h-3.5" /> Video Pipeline
+        </Link>
+        <PageErrorState
+          title="We couldn't load this video"
+          message={error}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      </div>
+    )
+  }
+
+  if (!video) {
+    return (
+      <div className="p-6 lg:p-8">
+        <Link to="/app/pipeline" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6">
+          <ArrowLeft className="w-3.5 h-3.5" /> Video Pipeline
+        </Link>
+        <div className="text-center py-20">
+          <Film className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+          <p className="text-slate-300 text-sm font-semibold mb-1">Video not found</p>
+          <p className="text-slate-500 text-xs mb-5">
+            This video may have been removed, or the link is incorrect.
+          </p>
+          <Link to="/app/pipeline" className="btn-primary text-xs py-2 px-4 inline-flex items-center gap-1.5">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to pipeline
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   const currentStageIndex = pipeline.indexOf(video.status)
   const sc = statusColors[video.status]
   const pc = priorityColors[video.priority]
@@ -71,20 +230,27 @@ export default function VideoDetail() {
 
             {/* Action bar */}
             <div className="flex items-center gap-3 px-4 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              {video.status === 'client_review' && (
+              {(video.status === 'client_review' || video.status === 'internal_review') && (
                 <>
-                  <button className="btn-primary text-xs py-2 px-5 flex items-center gap-1.5">
+                  <button
+                    className="btn-primary text-xs py-2 px-5 flex items-center gap-1.5 disabled:opacity-50"
+                    disabled={acting}
+                    onClick={() => handleDecision('approve')}>
                     <CheckCircle className="w-3.5 h-3.5" /> Approve Video
                   </button>
-                  <button className="btn-secondary text-xs py-2 px-5 flex items-center gap-1.5" style={{ color: '#FCA5A5', borderColor: 'rgba(239,68,68,0.3)' }}>
+                  <button
+                    className="btn-secondary text-xs py-2 px-5 flex items-center gap-1.5 disabled:opacity-50"
+                    style={{ color: '#FCA5A5', borderColor: 'rgba(239,68,68,0.3)' }}
+                    disabled={acting}
+                    onClick={() => handleDecision('revision')}>
                     <XCircle className="w-3.5 h-3.5" /> Request Revision
                   </button>
                 </>
               )}
               {video.finalUrl && (
-                <button className="btn-ghost text-xs">
+                <a href={video.finalUrl} target="_blank" rel="noreferrer" className="btn-ghost text-xs inline-flex items-center gap-1.5">
                   <Download className="w-3.5 h-3.5" /> Download Final
-                </button>
+                </a>
               )}
               <div className="ml-auto flex items-center gap-2 text-xs text-slate-500">
                 <span>{video.revisionCount} revisions</span>
@@ -140,12 +306,19 @@ export default function VideoDetail() {
                   {/* New comment */}
                   <div className="flex gap-3 mb-5">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                      style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>BM</div>
+                      style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
+                      {getInitials(user?.name ?? '?')}
+                    </div>
                     <div className="flex-1">
                       <div className="flex gap-2">
                         <input className="input py-2 text-xs flex-1" placeholder="Add a comment… (or type a timestamp like 0:12)"
-                          value={newComment} onChange={(e) => setNewComment(e.target.value)} />
-                        <button className="btn-primary text-xs py-2 px-4">
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') void handleAddComment() }} />
+                        <button
+                          className="btn-primary text-xs py-2 px-4 disabled:opacity-50"
+                          disabled={posting || !newComment.trim()}
+                          onClick={() => handleAddComment()}>
                           <Send className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -161,7 +334,7 @@ export default function VideoDetail() {
                         transition={{ delay: i * 0.06 }}
                         className={`flex gap-3 p-3.5 rounded-xl ${c.isInternal ? 'border border-dashed border-amber-500/20 bg-amber-500/[0.03]' : 'bg-white/[0.02]'}`}>
                         <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
-                          style={{ background: c.userRole === 'client' ? '#3B82F6' : c.userRole === 'editor' ? '#06B6D4' : '#8B5CF6' }}>
+                          style={{ background: c.userRole === 'client' ? '#3B82F6' : c.userRole === 'video_editor' ? '#06B6D4' : '#8B5CF6' }}>
                           {getInitials(c.userName)}
                         </div>
                         <div className="flex-1">
@@ -181,12 +354,11 @@ export default function VideoDetail() {
                             <span className="text-[10px] text-slate-600 ml-auto">{timeAgo(c.createdAt)}</span>
                           </div>
                           <p className="text-xs text-slate-300 leading-relaxed">{c.text}</p>
-                          <div className="flex items-center gap-3 mt-2">
-                            <button className="text-[10px] text-slate-600 hover:text-blue-400 transition-colors">Reply</button>
-                            <button className={`text-[10px] transition-colors ${c.status === 'resolved' ? 'text-green-400' : 'text-slate-600 hover:text-green-400'}`}>
-                              {c.status === 'resolved' ? '✓ Resolved' : 'Mark resolved'}
-                            </button>
-                          </div>
+                          {c.status === 'resolved' && (
+                            <div className="flex items-center gap-3 mt-2">
+                              <span className="text-[10px] text-green-400">✓ Resolved</span>
+                            </div>
+                          )}
                         </div>
                       </motion.div>
                     ))}
@@ -289,7 +461,7 @@ export default function VideoDetail() {
                 { label: 'Format', value: video.format },
                 { label: 'Aspect Ratio', value: video.aspectRatio ?? '—' },
                 { label: 'Duration', value: video.duration ?? '—' },
-                { label: 'Due Date', value: video.dueDate },
+                { label: 'Due Date', value: video.dueDate || '—' },
                 { label: 'Version', value: `v${video.version}` },
                 { label: 'Revisions', value: String(video.revisionCount) },
               ].map(({ label, value }) => (
@@ -304,7 +476,7 @@ export default function VideoDetail() {
           <div className="glass-blue rounded-2xl p-5">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-4">Team</h3>
             <div className="space-y-3">
-              {video.assignedEditorName && (
+              {video.assignedEditorName ? (
                 <div className="flex items-center gap-2.5">
                   <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
                     style={{ background: '#06B6D4' }}>
@@ -315,6 +487,8 @@ export default function VideoDetail() {
                     <p className="text-[10px] text-slate-500">Video Editor</p>
                   </div>
                 </div>
+              ) : (
+                <p className="text-xs text-slate-600">No editor assigned yet.</p>
               )}
             </div>
           </div>

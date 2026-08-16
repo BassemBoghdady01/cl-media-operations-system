@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Bell, Check, CheckCheck, Filter, Film, Package, CreditCard, MessageSquare, Calendar } from 'lucide-react'
-import { mockNotifications } from '../../data/mockData'
+import { Bell, Check, CheckCheck } from 'lucide-react'
+import { useAuth } from '../../contexts/AuthContext'
+import PageErrorState from '../../components/system/PageErrorState'
+import { notificationService } from '../../services/notificationService'
 import { timeAgo } from '../../lib/utils'
 import type { Notification } from '../../types'
 
@@ -19,14 +22,17 @@ const TYPE_CONFIG: Record<string, { icon: string; color: string; bg: string }> =
   file: { icon: '📎', color: '#06B6D4', bg: 'rgba(6,182,212,0.12)' },
 }
 
-function NotifRow({ notif, i, onRead }: { notif: Notification; i: number; onRead: (id: string) => void }) {
+function NotifRow({
+  notif, i, onRead, onOpen,
+}: { notif: Notification; i: number; onRead: (id: string) => void; onOpen: (notif: Notification) => void }) {
   const cfg = TYPE_CONFIG[notif.type] ?? { icon: '🔔', color: '#64748B', bg: 'rgba(100,116,139,0.12)' }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: i * 0.05 }}
+      transition={{ delay: Math.min(i * 0.05, 0.6) }}
+      onClick={() => onOpen(notif)}
       className={`flex items-start gap-4 px-5 py-4 transition-all cursor-pointer hover:bg-white/[0.02] ${!notif.isRead ? 'bg-blue-500/[0.03]' : ''}`}
       style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
 
@@ -71,17 +77,74 @@ function NotifRow({ notif, i, onRead }: { notif: Notification; i: number; onRead
 }
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState(mockNotifications)
+  const { user } = useAuth()
+  const userId = user?.id || ''
+  const navigate = useNavigate()
+
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+
   const [filter, setFilter] = useState('All')
+
+  useEffect(() => {
+    if (!userId) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const rows = await notificationService.getAll(userId)
+        if (cancelled) return
+        setNotifications(rows)
+      } catch (err) {
+        if (cancelled) return
+        console.error('[NotificationsPage] load failed', err)
+        setError(err instanceof Error ? err.message : 'Could not load notifications.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [userId, reloadKey])
 
   const unread = notifications.filter((n) => !n.isRead).length
 
-  const markRead = (id: string) => {
+  const markRead = async (id: string) => {
+    const target = notifications.find((n) => n.id === id)
+    if (!target || target.isRead) return
+    const previous = notifications
     setNotifications((ns) => ns.map((n) => n.id === id ? { ...n, isRead: true } : n))
+    try {
+      await notificationService.markRead(id)
+    } catch (err) {
+      console.error('[NotificationsPage] markRead failed', err)
+      setNotifications(previous)
+    }
   }
 
-  const markAllRead = () => {
+  const markAllRead = async () => {
+    if (!userId || unread === 0) return
+    const previous = notifications
     setNotifications((ns) => ns.map((n) => ({ ...n, isRead: true })))
+    try {
+      await notificationService.markAllRead(userId)
+    } catch (err) {
+      console.error('[NotificationsPage] markAllRead failed', err)
+      setNotifications(previous)
+    }
+  }
+
+  const openNotification = (n: Notification) => {
+    void markRead(n.id)
+    if (n.link) navigate(n.link)
   }
 
   const typeFilters = ['All', 'Approvals', 'Reviews', 'Invoices', 'Packages', 'Tasks']
@@ -95,6 +158,18 @@ export default function NotificationsPage() {
     return true
   })
 
+  if (error) {
+    return (
+      <div className="p-6 lg:p-8">
+        <PageErrorState
+          title="We couldn't load your notifications"
+          message={error}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      </div>
+    )
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -106,54 +181,67 @@ export default function NotificationsPage() {
         <div className="flex items-center gap-3">
           <div>
             <h1 className="text-2xl font-black text-white">Notifications</h1>
-            <p className="text-slate-400 text-sm mt-1">{unread} unread · {notifications.length} total</p>
+            <p className="text-slate-400 text-sm mt-1">
+              {loading ? 'Loading notifications…' : `${unread} unread · ${notifications.length} total`}
+            </p>
           </div>
-          {unread > 0 && (
+          {!loading && unread > 0 && (
             <span className="px-2.5 py-1 rounded-full text-xs font-bold text-white"
               style={{ background: 'linear-gradient(135deg, #EF4444, #DC2626)' }}>
               {unread} new
             </span>
           )}
         </div>
-        {unread > 0 && (
+        {!loading && unread > 0 && (
           <button onClick={markAllRead} className="btn-secondary text-xs py-2 px-4">
             <CheckCheck className="w-3.5 h-3.5" /> Mark all as read
           </button>
         )}
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex flex-wrap gap-2 mb-5">
-        {typeFilters.map((f) => (
-          <button key={f} onClick={() => setFilter(f)}
-            className="px-4 py-1.5 rounded-xl text-xs font-medium transition-all"
-            style={{
-              background: filter === f ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
-              color: filter === f ? '#60A5FA' : '#64748B',
-              border: `1px solid ${filter === f ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.06)'}`,
-            }}>
-            {f}
-          </button>
-        ))}
-      </div>
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-24">
+          <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+        </div>
+      )}
 
-      {/* Notification list */}
-      <div className="glass-blue rounded-2xl overflow-hidden">
-        {filtered.length > 0 ? (
-          filtered.map((n, i) => (
-            <NotifRow key={n.id} notif={n} i={i} onRead={markRead} />
-          ))
-        ) : (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-              style={{ background: 'rgba(59,130,246,0.08)' }}>
-              <Bell className="w-7 h-7 text-slate-600" />
-            </div>
-            <p className="text-slate-500 text-sm mb-1">You're all caught up!</p>
-            <p className="text-xs text-slate-600">No {filter !== 'All' ? filter.toLowerCase() : ''} notifications</p>
+      {!loading && (
+        <>
+          {/* Filter tabs */}
+          <div className="flex flex-wrap gap-2 mb-5">
+            {typeFilters.map((f) => (
+              <button key={f} onClick={() => setFilter(f)}
+                className="px-4 py-1.5 rounded-xl text-xs font-medium transition-all"
+                style={{
+                  background: filter === f ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
+                  color: filter === f ? '#60A5FA' : '#64748B',
+                  border: `1px solid ${filter === f ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                }}>
+                {f}
+              </button>
+            ))}
           </div>
-        )}
-      </div>
+
+          {/* Notification list */}
+          <div className="glass-blue rounded-2xl overflow-hidden">
+            {filtered.length > 0 ? (
+              filtered.map((n, i) => (
+                <NotifRow key={n.id} notif={n} i={i} onRead={markRead} onOpen={openNotification} />
+              ))
+            ) : (
+              <div className="flex flex-col items-center justify-center py-20">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+                  style={{ background: 'rgba(59,130,246,0.08)' }}>
+                  <Bell className="w-7 h-7 text-slate-600" />
+                </div>
+                <p className="text-slate-500 text-sm mb-1">You're all caught up!</p>
+                <p className="text-xs text-slate-600">No {filter !== 'All' ? filter.toLowerCase() : ''} notifications</p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </motion.div>
   )
 }

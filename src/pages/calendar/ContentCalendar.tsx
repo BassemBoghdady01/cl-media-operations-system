@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import {
-  ChevronLeft, ChevronRight, Plus, Filter, Instagram,
-  Youtube, Linkedin, Calendar as CalIcon, Clock, CheckCircle,
-} from 'lucide-react'
-import { mockVideos } from '../../data/mockData'
+import { ChevronLeft, ChevronRight, Plus, Clock } from 'lucide-react'
+import { useAuth } from '../../contexts/AuthContext'
+import PageErrorState from '../../components/system/PageErrorState'
+import { calendarService, type CalendarItem } from '../../services/calendarService'
+import { videoService } from '../../services/videoService'
 import { statusColors, getInitials } from '../../lib/utils'
+import type { Video } from '../../types'
 
 type CalView = 'month' | 'week'
 
@@ -17,12 +18,15 @@ const PLATFORMS: Record<string, { color: string; short: string }> = {
   linkedin: { color: '#0A66C2', short: 'LI' },
 }
 
-const STATUS_DOT: Record<string, string> = {
-  approved: '#10B981',
-  scheduled: '#8B5CF6',
-  posted: '#10B981',
-  client_review: '#EAB308',
-  editing: '#3B82F6',
+/** Unified calendar entry: content_calendar rows merged with scheduled videos. */
+interface CalendarEntry {
+  id: string
+  title: string
+  clientName: string
+  clientColor: string
+  platform: string
+  status: string
+  date: string // YYYY-MM-DD
 }
 
 function getDaysInMonth(year: number, month: number) {
@@ -37,9 +41,10 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December']
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-const scheduledVideos = mockVideos.filter((v) => v.scheduledDate || v.status === 'approved' || v.status === 'scheduled')
-
 export default function ContentCalendar() {
+  const { user, agency } = useAuth()
+  const agencyId = user?.agencyId || agency?.id || ''
+
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
@@ -48,7 +53,70 @@ export default function ContentCalendar() {
   const [selectedPlatform, setSelectedPlatform] = useState('All')
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
 
-  const clients = ['All', ...new Set(mockVideos.map((v) => v.clientName))]
+  const [calendarItems, setCalendarItems] = useState<CalendarItem[]>([])
+  const [videos, setVideos] = useState<Video[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
+
+  useEffect(() => {
+    if (!agencyId) return
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    Promise.all([calendarService.getAll(agencyId), videoService.getAll(agencyId)])
+      .then(([items, vids]) => {
+        if (cancelled) return
+        setCalendarItems(items)
+        setVideos(vids)
+        setLoading(false)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error('[ContentCalendar] load failed', err)
+        setError(err instanceof Error ? err.message : 'Could not load the content calendar.')
+        setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [agencyId, reload])
+
+  const retry = () => setReload((n) => n + 1)
+
+  // Merge: content_calendar rows are the primary source; scheduled videos that
+  // are not already linked to a calendar entry (via videoId) are added on top.
+  const entries = useMemo<CalendarEntry[]>(() => {
+    const fromCalendar: CalendarEntry[] = calendarItems
+      .filter((c) => c.status !== 'cancelled' && c.scheduledAt)
+      .map((c) => ({
+        id: c.id,
+        title: c.title,
+        clientName: c.clientName ?? 'Client',
+        clientColor: c.clientColor ?? '#3B82F6',
+        platform: c.platform,
+        status: c.status,
+        date: c.scheduledAt.slice(0, 10),
+      }))
+    const linkedVideoIds = new Set(
+      calendarItems.map((c) => c.videoId).filter((id): id is string => !!id)
+    )
+    const fromVideos: CalendarEntry[] = videos
+      .filter((v) => v.scheduledDate && !linkedVideoIds.has(v.id))
+      .map((v) => ({
+        id: `video-${v.id}`,
+        title: v.title,
+        clientName: v.clientName,
+        clientColor: v.clientColor,
+        platform: v.platform,
+        status: v.status,
+        date: (v.scheduledDate as string).slice(0, 10),
+      }))
+    return [...fromCalendar, ...fromVideos]
+  }, [calendarItems, videos])
+
+  const clients = useMemo(
+    () => ['All', ...new Set(entries.map((e) => e.clientName))],
+    [entries]
+  )
 
   const prevMonth = () => {
     if (month === 0) { setMonth(11); setYear((y) => y - 1) } else setMonth((m) => m - 1)
@@ -57,13 +125,12 @@ export default function ContentCalendar() {
     if (month === 11) { setMonth(0); setYear((y) => y + 1) } else setMonth((m) => m + 1)
   }
 
-  const getVideosForDay = (day: number) => {
+  const getEntriesForDay = (day: number) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-    return scheduledVideos.filter((v) => {
-      const date = v.scheduledDate ?? v.dueDate
-      const match = date === dateStr
-      const matchClient = selectedClient === 'All' || v.clientName === selectedClient
-      const matchPlatform = selectedPlatform === 'All' || v.platform === selectedPlatform
+    return entries.filter((e) => {
+      const match = e.date === dateStr
+      const matchClient = selectedClient === 'All' || e.clientName === selectedClient
+      const matchPlatform = selectedPlatform === 'All' || e.platform === selectedPlatform
       return match && matchClient && matchPlatform
     })
   }
@@ -75,19 +142,13 @@ export default function ContentCalendar() {
   )
   while (cells.length % 7 !== 0) cells.push(null)
 
-  const selectedVideos = selectedDay ? getVideosForDay(selectedDay) : []
+  const selectedEntries = selectedDay ? getEntriesForDay(selectedDay) : []
 
   // Upcoming posts for sidebar
-  const upcoming = scheduledVideos
-    .filter((v) => {
-      const d = new Date(v.scheduledDate ?? v.dueDate)
-      return d >= today
-    })
-    .sort((a, b) => {
-      const da = new Date(a.scheduledDate ?? a.dueDate)
-      const db = new Date(b.scheduledDate ?? b.dueDate)
-      return da.getTime() - db.getTime()
-    })
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const upcoming = entries
+    .filter((e) => e.date >= todayStr)
+    .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 6)
 
   return (
@@ -100,7 +161,9 @@ export default function ContentCalendar() {
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-black text-white">Content Calendar</h1>
-          <p className="text-slate-400 text-sm mt-1">{scheduledVideos.length} items scheduled or ready to post</p>
+          <p className="text-slate-400 text-sm mt-1">
+            {loading ? 'Loading schedule…' : `${entries.length} items scheduled or ready to post`}
+          </p>
         </div>
         <div className="flex gap-3">
           <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -118,180 +181,188 @@ export default function ContentCalendar() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-5">
-        <select className="input py-2 text-xs w-auto" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
-          {clients.map((c) => <option key={c}>{c}</option>)}
-        </select>
-        <select className="input py-2 text-xs w-auto" value={selectedPlatform} onChange={(e) => setSelectedPlatform(e.target.value)}>
-          {['All', 'instagram', 'tiktok', 'youtube', 'facebook', 'linkedin'].map((p) => <option key={p}>{p}</option>)}
-        </select>
-        {/* Platform legend */}
-        <div className="flex items-center gap-3 ml-2">
-          {Object.entries(PLATFORMS).map(([k, { color, short }]) => (
-            <div key={k} className="flex items-center gap-1.5 text-[10px] text-slate-400">
-              <div className="w-2 h-2 rounded-full" style={{ background: color }} />{short}
-            </div>
-          ))}
+      {error ? (
+        <PageErrorState title="We couldn't load the calendar" message={error} onRetry={retry} />
+      ) : loading ? (
+        <div className="flex items-center justify-center py-24">
+          <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
         </div>
-      </div>
-
-      <div className="grid lg:grid-cols-4 gap-6">
-        {/* Calendar */}
-        <div className="lg:col-span-3">
-          <div className="glass-blue rounded-2xl p-5">
-            {/* Month nav */}
-            <div className="flex items-center justify-between mb-5">
-              <button onClick={prevMonth} className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.07] transition-all">
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <h2 className="text-base font-bold text-white">{MONTH_NAMES[month]} {year}</h2>
-              <button onClick={nextMonth} className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.07] transition-all">
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Day headers */}
-            <div className="grid grid-cols-7 mb-2">
-              {DAY_NAMES.map((d) => (
-                <div key={d} className="text-center text-[10px] font-semibold text-slate-600 py-1">{d}</div>
-              ))}
-            </div>
-
-            {/* Calendar grid */}
-            <div className="grid grid-cols-7 gap-1">
-              {cells.map((day, i) => {
-                if (!day) return <div key={i} className="aspect-square" />
-                const videos = getVideosForDay(day)
-                const isToday = year === today.getFullYear() && month === today.getMonth() && day === today.getDate()
-                const isSelected = selectedDay === day
-                return (
-                  <motion.button
-                    key={i}
-                    whileHover={{ scale: 1.05 }}
-                    onClick={() => setSelectedDay(day === selectedDay ? null : day)}
-                    className="min-h-[64px] rounded-xl p-1.5 text-left transition-all relative overflow-hidden"
-                    style={{
-                      background: isSelected ? 'rgba(59,130,246,0.2)' : isToday ? 'rgba(59,130,246,0.08)' : videos.length > 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
-                      border: isSelected ? '1px solid rgba(59,130,246,0.5)' : isToday ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
-                    }}>
-                    <div className={`text-[11px] font-bold mb-1 ${isToday ? 'text-blue-400' : isSelected ? 'text-white' : 'text-slate-400'}`}>
-                      {day}
-                    </div>
-                    <div className="flex flex-wrap gap-0.5">
-                      {videos.slice(0, 3).map((v) => (
-                        <div key={v.id}
-                          className="w-full px-1 py-0.5 rounded text-[9px] font-medium truncate"
-                          style={{ background: `${PLATFORMS[v.platform]?.color}20`, color: PLATFORMS[v.platform]?.color }}>
-                          {PLATFORMS[v.platform]?.short} · {v.title.slice(0, 10)}…
-                        </div>
-                      ))}
-                      {videos.length > 3 && (
-                        <span className="text-[9px] text-slate-600">+{videos.length - 3} more</span>
-                      )}
-                    </div>
-                  </motion.button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Selected day detail */}
-          {selectedDay && selectedVideos.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-4 glass-blue rounded-2xl p-5">
-              <h3 className="text-sm font-bold text-white mb-4">
-                {MONTH_NAMES[month]} {selectedDay} — {selectedVideos.length} post{selectedVideos.length > 1 ? 's' : ''}
-              </h3>
-              <div className="space-y-3">
-                {selectedVideos.map((v) => {
-                  const sc = statusColors[v.status]
-                  const pc = PLATFORMS[v.platform]
-                  return (
-                    <div key={v.id} className="flex items-center gap-3 p-3.5 rounded-xl"
-                      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
-                        style={{ background: v.clientColor }}>
-                        {getInitials(v.clientName)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{v.title}</p>
-                        <p className="text-[10px] text-slate-500">{v.clientName} · {v.platform}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full" style={{ background: pc?.color }} />
-                        <span className="badge text-[10px]" style={{ background: sc?.bg, color: sc?.text }}>
-                          {v.status.replace('_', ' ')}
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </motion.div>
-          )}
-        </div>
-
-        {/* Upcoming sidebar */}
-        <div className="space-y-4">
-          <div className="glass-blue rounded-2xl p-5">
-            <h3 className="text-sm font-bold text-white mb-4">Upcoming Posts</h3>
-            <div className="space-y-3">
-              {upcoming.map((v, i) => {
-                const date = v.scheduledDate ?? v.dueDate
-                const sc = statusColors[v.status]
-                const pc = PLATFORMS[v.platform]
-                return (
-                  <motion.div
-                    key={v.id}
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.07 }}
-                    className="flex gap-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                      style={{ background: `${pc?.color}20`, color: pc?.color }}>
-                      {pc?.short}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-white truncate leading-tight">{v.title}</p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{v.clientName}</p>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <Clock className="w-2.5 h-2.5 text-slate-600" />
-                        <span className="text-[10px] text-slate-500">{date}</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                )
-              })}
-              {upcoming.length === 0 && (
-                <p className="text-xs text-slate-600 text-center py-4">No upcoming posts.</p>
-              )}
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="glass-blue rounded-2xl p-5">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">This Month</h3>
-            <div className="space-y-3">
-              {[
-                { label: 'Posts Scheduled', value: scheduledVideos.filter((v) => v.status === 'scheduled').length, color: '#8B5CF6' },
-                { label: 'Approved & Ready', value: scheduledVideos.filter((v) => v.status === 'approved').length, color: '#10B981' },
-                { label: 'Already Posted', value: mockVideos.filter((v) => v.status === 'posted').length, color: '#3B82F6' },
-              ].map(({ label, value, color }) => (
-                <div key={label} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ background: color }} />
-                    <span className="text-xs text-slate-400">{label}</span>
-                  </div>
-                  <span className="text-sm font-black text-white">{value}</span>
+      ) : (
+        <>
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3 mb-5">
+            <select className="input py-2 text-xs w-auto" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
+              {clients.map((c) => <option key={c}>{c}</option>)}
+            </select>
+            <select className="input py-2 text-xs w-auto" value={selectedPlatform} onChange={(e) => setSelectedPlatform(e.target.value)}>
+              {['All', 'instagram', 'tiktok', 'youtube', 'facebook', 'linkedin'].map((p) => <option key={p}>{p}</option>)}
+            </select>
+            {/* Platform legend */}
+            <div className="flex items-center gap-3 ml-2">
+              {Object.entries(PLATFORMS).map(([k, { color, short }]) => (
+                <div key={k} className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                  <div className="w-2 h-2 rounded-full" style={{ background: color }} />{short}
                 </div>
               ))}
             </div>
           </div>
-        </div>
-      </div>
+
+          <div className="grid lg:grid-cols-4 gap-6">
+            {/* Calendar */}
+            <div className="lg:col-span-3">
+              <div className="glass-blue rounded-2xl p-5">
+                {/* Month nav */}
+                <div className="flex items-center justify-between mb-5">
+                  <button onClick={prevMonth} className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.07] transition-all">
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <h2 className="text-base font-bold text-white">{MONTH_NAMES[month]} {year}</h2>
+                  <button onClick={nextMonth} className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.07] transition-all">
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Day headers */}
+                <div className="grid grid-cols-7 mb-2">
+                  {DAY_NAMES.map((d) => (
+                    <div key={d} className="text-center text-[10px] font-semibold text-slate-600 py-1">{d}</div>
+                  ))}
+                </div>
+
+                {/* Calendar grid */}
+                <div className="grid grid-cols-7 gap-1">
+                  {cells.map((day, i) => {
+                    if (!day) return <div key={i} className="aspect-square" />
+                    const dayEntries = getEntriesForDay(day)
+                    const isToday = year === today.getFullYear() && month === today.getMonth() && day === today.getDate()
+                    const isSelected = selectedDay === day
+                    return (
+                      <motion.button
+                        key={i}
+                        whileHover={{ scale: 1.05 }}
+                        onClick={() => setSelectedDay(day === selectedDay ? null : day)}
+                        className="min-h-[64px] rounded-xl p-1.5 text-left transition-all relative overflow-hidden"
+                        style={{
+                          background: isSelected ? 'rgba(59,130,246,0.2)' : isToday ? 'rgba(59,130,246,0.08)' : dayEntries.length > 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                          border: isSelected ? '1px solid rgba(59,130,246,0.5)' : isToday ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
+                        }}>
+                        <div className={`text-[11px] font-bold mb-1 ${isToday ? 'text-blue-400' : isSelected ? 'text-white' : 'text-slate-400'}`}>
+                          {day}
+                        </div>
+                        <div className="flex flex-wrap gap-0.5">
+                          {dayEntries.slice(0, 3).map((e) => (
+                            <div key={e.id}
+                              className="w-full px-1 py-0.5 rounded text-[9px] font-medium truncate"
+                              style={{ background: `${PLATFORMS[e.platform]?.color ?? '#64748B'}20`, color: PLATFORMS[e.platform]?.color ?? '#94A3B8' }}>
+                              {PLATFORMS[e.platform]?.short ?? e.platform.slice(0, 2).toUpperCase()} · {e.title.slice(0, 10)}…
+                            </div>
+                          ))}
+                          {dayEntries.length > 3 && (
+                            <span className="text-[9px] text-slate-600">+{dayEntries.length - 3} more</span>
+                          )}
+                        </div>
+                      </motion.button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Selected day detail */}
+              {selectedDay && selectedEntries.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-4 glass-blue rounded-2xl p-5">
+                  <h3 className="text-sm font-bold text-white mb-4">
+                    {MONTH_NAMES[month]} {selectedDay} — {selectedEntries.length} post{selectedEntries.length > 1 ? 's' : ''}
+                  </h3>
+                  <div className="space-y-3">
+                    {selectedEntries.map((e) => {
+                      const sc = statusColors[e.status]
+                      const pc = PLATFORMS[e.platform]
+                      return (
+                        <div key={e.id} className="flex items-center gap-3 p-3.5 rounded-xl"
+                          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
+                            style={{ background: e.clientColor }}>
+                            {getInitials(e.clientName)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-white truncate">{e.title}</p>
+                            <p className="text-[10px] text-slate-500">{e.clientName} · {e.platform}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full" style={{ background: pc?.color ?? '#64748B' }} />
+                            <span className="badge text-[10px]" style={{ background: sc?.bg, color: sc?.text }}>
+                              {e.status.replace('_', ' ')}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </div>
+
+            {/* Upcoming sidebar */}
+            <div className="space-y-4">
+              <div className="glass-blue rounded-2xl p-5">
+                <h3 className="text-sm font-bold text-white mb-4">Upcoming Posts</h3>
+                <div className="space-y-3">
+                  {upcoming.map((e, i) => {
+                    const pc = PLATFORMS[e.platform]
+                    return (
+                      <motion.div
+                        key={e.id}
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.07 }}
+                        className="flex gap-3">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                          style={{ background: `${pc?.color ?? '#64748B'}20`, color: pc?.color ?? '#94A3B8' }}>
+                          {pc?.short ?? e.platform.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-white truncate leading-tight">{e.title}</p>
+                          <p className="text-[10px] text-slate-500 mt-0.5">{e.clientName}</p>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <Clock className="w-2.5 h-2.5 text-slate-600" />
+                            <span className="text-[10px] text-slate-500">{e.date}</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )
+                  })}
+                  {upcoming.length === 0 && (
+                    <p className="text-xs text-slate-600 text-center py-4">No upcoming posts.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="glass-blue rounded-2xl p-5">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Overview</h3>
+                <div className="space-y-3">
+                  {[
+                    { label: 'Posts Scheduled', value: entries.filter((e) => e.status === 'scheduled').length, color: '#8B5CF6' },
+                    { label: 'Approved & Ready', value: entries.filter((e) => e.status === 'approved').length, color: '#10B981' },
+                    { label: 'Already Posted', value: entries.filter((e) => e.status === 'posted').length, color: '#3B82F6' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ background: color }} />
+                        <span className="text-xs text-slate-400">{label}</span>
+                      </div>
+                      <span className="text-sm font-black text-white">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </motion.div>
   )
 }

@@ -163,10 +163,11 @@ const features = [
 
 // ─── Testimonials ─────────────────────────────────────────────────────────────
 
+// Honest capability highlights — no invented customers or fabricated quotes.
 const testimonials = [
-  { name: 'Mona Khalil', role: 'Head of Content, TechVision', quote: 'We replaced 6 tools with EZ Marketing Agency. The pipeline alone saves us 10 hours a week.', avatar: 'MK' },
-  { name: 'Farida Hassan', role: 'Brand Manager, Nile Brands', quote: 'Finally, I can see exactly where my video is without messaging anyone.', avatar: 'FH' },
-  { name: 'Karim Nasser', role: 'Founder, Cairo Eats', quote: 'The client portal changed how we work with our agency. So much cleaner.', avatar: 'KN' },
+  { name: 'One pipeline', role: 'Video Production', quote: 'Every video moves from idea to posted through one board — script, shoot, edit, review, approve.', avatar: '🎬' },
+  { name: 'Real numbers', role: 'Finance & Payroll', quote: 'Revenue, expenses, subscriptions, payroll and P&L come straight from the ledger — never estimates.', avatar: '📊' },
+  { name: 'Client portal', role: 'Client Experience', quote: 'Clients review videos, track their package and see their own invoices and payment schedule.', avatar: '🤝' },
 ]
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -620,10 +621,7 @@ export default function LandingPage() {
                 transition={{ delay: i * 0.1 }}
                 className="p-6 rounded-2xl"
                 style={{ background: 'rgba(13,22,47,0.7)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <div className="flex mb-3">
-                  {[0, 1, 2, 3, 4].map((s) => <Star key={s} className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />)}
-                </div>
-                <p className="text-sm text-slate-200 leading-relaxed mb-5">"{t.quote}"</p>
+                <p className="text-sm text-slate-200 leading-relaxed mb-5">{t.quote}</p>
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white"
                     style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>{t.avatar}</div>

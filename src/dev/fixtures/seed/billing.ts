@@ -1,4 +1,4 @@
-import type { Package, Invoice } from '../../types'
+import type { Package, Invoice } from '../../../types'
 
 export const seedPackages: Package[] = [
   {

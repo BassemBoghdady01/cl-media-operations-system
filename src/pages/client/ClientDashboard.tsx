@@ -28,7 +28,9 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
 }
 
 export default function ClientDashboard() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  // Portal data is keyed by the linked client record, not the auth user id.
+  const clientId = profile?.client_id ?? user?.id ?? ''
   const [videos, setVideos] = useState<Video[]>([])
   const [pkg, setPkg] = useState<PackageType | null>(null)
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -40,10 +42,10 @@ export default function ClientDashboard() {
     if (!user) return
     setLoadError(null)
     Promise.all([
-      videoService.getByClient(user.id),
-      packageService.getByClient(user.id),
-      invoiceService.getByClient(user.id),
-      bookingService.getByClient(user.id),
+      videoService.getByClient(clientId),
+      packageService.getByClient(clientId),
+      invoiceService.getByClient(clientId),
+      bookingService.getByClient(clientId),
     ]).then(([v, p, inv, b]) => {
       setVideos(v)
       setPkg(p ?? null)

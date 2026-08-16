@@ -19,7 +19,9 @@ const PLATFORM_ICONS: Record<string, string> = {
 }
 
 export default function ClientVideos() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  // Portal data is keyed by the linked client record, not the auth user id.
+  const clientId = profile?.client_id ?? user?.id ?? ''
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -28,7 +30,7 @@ export default function ClientVideos() {
   useEffect(() => {
     if (!user) return
     setLoadError(null)
-    videoService.getByClient(user.id).then((data) => {
+    videoService.getByClient(clientId).then((data) => {
       setVideos(data)
       setLoading(false)
     })

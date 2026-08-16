@@ -1,24 +1,22 @@
 /**
  * EZ Marketing Agency — Roles & Permissions
  *
- * SINGLE SOURCE OF TRUTH for role values. Do not hardcode role strings anywhere
- * else in the app — import from here.
+ * SINGLE SOURCE OF TRUTH for role and permission values in the frontend.
+ * Do not hardcode role or permission strings anywhere else — import from here.
  *
- * ── Why this file exists ──────────────────────────────────────────────────────
- * The database CHECK constraint and the frontend union type had drifted apart:
+ * ── Relationship to the database ─────────────────────────────────────────────
+ * This file MIRRORS supabase/migrations/002_roles_permissions.sql. The database
+ * is authoritative: RLS policies call has_permission() server-side, so a user
+ * who tampers with the frontend still receives zero rows.
  *
- *   database:  owner | admin | project_manager | editor |
- *              social_media_manager | accountant | client | creator
- *   frontend:  super_admin | agency_admin | project_manager | editor |
- *              social_manager | accountant | client | creator
+ * What lives here is the UI's copy — used to decide which menu items and
+ * buttons to render. If you add a permission, add it in BOTH places.
  *
- * Three values disagreed (owner/super_admin, admin/agency_admin,
- * social_media_manager/social_manager). A profile row carrying a database-only
- * value produced a role the route guards did not recognise, which sent the user
- * into an infinite redirect and blanked the app.
- *
- * `normalizeRole()` maps every known legacy spelling onto a canonical value, so
- * the app stays correct even against rows that have not been migrated yet.
+ * ── History ─────────────────────────────────────────────────────────────────
+ * The database CHECK and this union once disagreed (owner/super_admin,
+ * admin/agency_admin, social_media_manager/social_manager), which produced an
+ * unrecognised role, an infinite guard redirect, and a blank screen.
+ * `normalizeRole()` now maps every known spelling onto a canonical value.
  */
 
 // ─── Canonical roles ──────────────────────────────────────────────────────────
@@ -26,11 +24,24 @@
 export const ROLES = {
   SUPER_ADMIN: 'super_admin',
   AGENCY_ADMIN: 'agency_admin',
-  PROJECT_MANAGER: 'project_manager',
-  EDITOR: 'editor',
-  SOCIAL_MANAGER: 'social_manager',
-  CREATOR: 'creator',
+  FINANCE_MANAGER: 'finance_manager',
+  HR_MANAGER: 'hr_manager',
+  OPERATIONS: 'operations',
   ACCOUNTANT: 'accountant',
+  MARKETING_MANAGER: 'marketing_manager',
+  SALES_MANAGER: 'sales_manager',
+  PROJECT_MANAGER: 'project_manager',
+  ACCOUNT_MANAGER: 'account_manager',
+  CLIENT_SUCCESS: 'client_success',
+  CONTENT_STRATEGIST: 'content_strategist',
+  SOCIAL_MEDIA_MANAGER: 'social_media_manager',
+  MEDIA_BUYER: 'media_buyer',
+  SALES: 'sales',
+  VIDEOGRAPHER: 'videographer',
+  VIDEO_EDITOR: 'video_editor',
+  GRAPHIC_DESIGNER: 'graphic_designer',
+  CONTENT_CREATOR: 'content_creator',
+  VIEWER: 'viewer',
   CLIENT: 'client',
 } as const
 
@@ -38,42 +49,86 @@ export type UserRole = (typeof ROLES)[keyof typeof ROLES]
 
 export const ALL_ROLES: readonly UserRole[] = Object.values(ROLES)
 
+/** Lower = higher authority. Used for "who may modify whom". */
+export const ROLE_LEVEL: Readonly<Record<UserRole, number>> = {
+  super_admin: 0,
+  agency_admin: 10,
+  finance_manager: 20,
+  hr_manager: 20,
+  operations: 25,
+  accountant: 30,
+  marketing_manager: 30,
+  sales_manager: 30,
+  project_manager: 35,
+  account_manager: 35,
+  client_success: 40,
+  content_strategist: 40,
+  social_media_manager: 45,
+  media_buyer: 45,
+  sales: 50,
+  videographer: 55,
+  video_editor: 55,
+  graphic_designer: 55,
+  content_creator: 60,
+  viewer: 90,
+  client: 100,
+}
+
+export const ROLE_LABELS: Readonly<Record<UserRole, string>> = {
+  super_admin: 'Super Admin',
+  agency_admin: 'Agency Admin',
+  finance_manager: 'Finance Manager',
+  hr_manager: 'HR Manager',
+  operations: 'Operations Manager',
+  accountant: 'Accountant',
+  marketing_manager: 'Marketing Manager',
+  sales_manager: 'Sales Manager',
+  project_manager: 'Project Manager',
+  account_manager: 'Account Manager',
+  client_success: 'Client Success',
+  content_strategist: 'Content Strategist',
+  social_media_manager: 'Social Media Manager',
+  media_buyer: 'Media Buyer',
+  sales: 'Sales Representative',
+  videographer: 'Videographer',
+  video_editor: 'Video Editor',
+  graphic_designer: 'Graphic Designer',
+  content_creator: 'Content Creator',
+  viewer: 'Viewer (Read Only)',
+  client: 'Client',
+}
+
 /**
- * Legacy / alternate spellings → canonical role.
- * Keys MUST be lowercase; `normalizeRole` lowercases before lookup.
- *
- * Everything the database CHECK constraint has ever permitted is listed here,
- * so an un-migrated production row still resolves to a usable role.
+ * Legacy / alternate spellings → canonical. Keys MUST be lowercase.
+ * Everything the database CHECK has ever allowed is listed, so an un-migrated
+ * production row still resolves to a usable role.
  */
 const ROLE_ALIASES: Readonly<Record<string, UserRole>> = {
-  // Database vocabulary (supabase/schema.sql, pre-migration)
+  // Original schema vocabulary
   owner: ROLES.SUPER_ADMIN,
   admin: ROLES.AGENCY_ADMIN,
-  social_media_manager: ROLES.SOCIAL_MANAGER,
-
-  // Other spellings seen in fixtures, invites and hand-edited rows
+  // Vocabulary from the first rebrand pass
+  social_manager: ROLES.SOCIAL_MEDIA_MANAGER,
+  editor: ROLES.VIDEO_EDITOR,
+  creator: ROLES.CONTENT_CREATOR,
+  // Defensive spellings
   superadmin: ROLES.SUPER_ADMIN,
   'super-admin': ROLES.SUPER_ADMIN,
   agency_owner: ROLES.SUPER_ADMIN,
-  agencyadmin: ROLES.AGENCY_ADMIN,
-  'agency-admin': ROLES.AGENCY_ADMIN,
   administrator: ROLES.AGENCY_ADMIN,
-  manager: ROLES.PROJECT_MANAGER,
-  projectmanager: ROLES.PROJECT_MANAGER,
+  finance: ROLES.FINANCE_MANAGER,
+  hr: ROLES.HR_MANAGER,
   pm: ROLES.PROJECT_MANAGER,
-  marketing_manager: ROLES.SOCIAL_MANAGER,
-  socialmanager: ROLES.SOCIAL_MANAGER,
-  social: ROLES.SOCIAL_MANAGER,
-  video_editor: ROLES.EDITOR,
-  finance: ROLES.ACCOUNTANT,
-  finance_manager: ROLES.ACCOUNTANT,
+  manager: ROLES.PROJECT_MANAGER,
+  designer: ROLES.GRAPHIC_DESIGNER,
+  talent: ROLES.CONTENT_CREATOR,
+  read_only: ROLES.VIEWER,
   customer: ROLES.CLIENT,
 }
 
 /**
- * Maps any raw role string (from the database, a JWT claim, or user metadata)
- * onto a canonical role. Returns null when the value is unknown — callers must
- * treat null as "access not configured", never as a silent default.
+ * Maps a raw role string onto a canonical role. Returns null when unknown —
+ * callers must treat null as "access not configured", never as a default.
  */
 export function normalizeRole(raw: string | null | undefined): UserRole | null {
   if (!raw) return null
@@ -83,172 +138,182 @@ export function normalizeRole(raw: string | null | undefined): UserRole | null {
   return ROLE_ALIASES[key] ?? null
 }
 
-/** The canonical value to persist for a given raw role, or null if unknown. */
-export function toDatabaseRole(raw: string | null | undefined): UserRole | null {
-  return normalizeRole(raw)
-}
-
 // ─── Role groups ──────────────────────────────────────────────────────────────
 
-/** Roles with access to the internal `/app/*` workspace. */
-export const INTERNAL_ROLES: readonly UserRole[] = [
-  ROLES.SUPER_ADMIN,
-  ROLES.AGENCY_ADMIN,
-  ROLES.PROJECT_MANAGER,
-  ROLES.EDITOR,
-  ROLES.SOCIAL_MANAGER,
-  ROLES.CREATOR,
-  ROLES.ACCOUNTANT,
-]
+export const CLIENT_ROLES: readonly UserRole[] = [ROLES.CLIENT]
 
-/** Roles allowed to administer the agency. */
+/** Everyone who belongs in /app/* (i.e. not a portal client). */
+export const INTERNAL_ROLES: readonly UserRole[] = ALL_ROLES.filter(
+  (r) => !CLIENT_ROLES.includes(r)
+)
+
 export const ADMIN_ROLES: readonly UserRole[] = [
   ROLES.SUPER_ADMIN,
   ROLES.AGENCY_ADMIN,
+  ROLES.OPERATIONS,
   ROLES.PROJECT_MANAGER,
 ]
 
-/** Roles that belong in the client portal. */
-export const CLIENT_ROLES: readonly UserRole[] = [ROLES.CLIENT]
+export const FINANCE_ROLES: readonly UserRole[] = [
+  ROLES.SUPER_ADMIN,
+  ROLES.FINANCE_MANAGER,
+  ROLES.ACCOUNTANT,
+]
 
-export const isInternalRole = (r: UserRole | null): boolean =>
-  !!r && INTERNAL_ROLES.includes(r)
-
+export const isInternalRole = (r: UserRole | null): boolean => !!r && INTERNAL_ROLES.includes(r)
 export const isAdminRole = (r: UserRole | null): boolean => !!r && ADMIN_ROLES.includes(r)
-
 export const isClientRole = (r: UserRole | null): boolean => !!r && CLIENT_ROLES.includes(r)
-
-/** Human-readable labels for UI display. */
-export const ROLE_LABELS: Readonly<Record<UserRole, string>> = {
-  [ROLES.SUPER_ADMIN]: 'Super Admin',
-  [ROLES.AGENCY_ADMIN]: 'Agency Admin',
-  [ROLES.PROJECT_MANAGER]: 'Project Manager',
-  [ROLES.EDITOR]: 'Video Editor',
-  [ROLES.SOCIAL_MANAGER]: 'Social Media Manager',
-  [ROLES.CREATOR]: 'Creator',
-  [ROLES.ACCOUNTANT]: 'Accountant',
-  [ROLES.CLIENT]: 'Client',
-}
+export const isSuperAdmin = (r: UserRole | null): boolean => r === ROLES.SUPER_ADMIN
 
 // ─── Permissions ──────────────────────────────────────────────────────────────
 
-export type Permission =
-  | 'dashboard.view'
-  | 'clients.view'
-  | 'clients.manage'
-  | 'videos.view'
-  | 'videos.manage'
-  | 'calendar.view'
-  | 'calendar.manage'
-  | 'assets.view'
-  | 'assets.manage'
-  | 'packages.view'
-  | 'packages.manage'
-  | 'billing.view'
-  | 'billing.manage'
-  | 'team.view'
-  | 'team.manage'
-  | 'tasks.view'
-  | 'tasks.manage'
-  | 'analytics.view'
-  | 'ai.use'
-  | 'settings.manage'
-  | 'portal.access'
-
-const ALL_PERMISSIONS: readonly Permission[] = [
+export const PERMISSIONS = [
   'dashboard.view',
-  'clients.view',
-  'clients.manage',
-  'videos.view',
-  'videos.manage',
-  'calendar.view',
-  'calendar.manage',
-  'assets.view',
-  'assets.manage',
-  'packages.view',
-  'packages.manage',
-  'billing.view',
-  'billing.manage',
-  'team.view',
-  'team.manage',
-  'tasks.view',
-  'tasks.manage',
+  'clients.view', 'clients.create', 'clients.edit', 'clients.delete',
+  'projects.view', 'projects.create', 'projects.edit',
+  'videos.view', 'videos.manage', 'videos.review',
+  'calendar.view', 'calendar.manage',
+  'assets.view', 'assets.manage',
+  'tasks.view', 'tasks.manage',
+  'bookings.view', 'bookings.manage',
+  'packages.view', 'packages.manage',
+  'ai.use', 'ai.manage',
   'analytics.view',
-  'ai.use',
-  'settings.manage',
+  'finance.view', 'finance.manage',
+  'finance.view_revenue', 'finance.view_expenses', 'finance.view_profit',
+  'finance.view_cashflow', 'finance.view_payroll', 'finance.manage_payroll',
+  'finance.approve_expenses', 'finance.close_period', 'finance.export',
+  'subscriptions.view', 'subscriptions.manage',
+  'invoices.view', 'invoices.manage',
+  'users.view', 'users.create', 'users.edit', 'users.manage_roles', 'users.deactivate',
+  'settings.view', 'settings.manage',
+  'audit.view',
   'portal.access',
-]
+] as const
+
+export type Permission = (typeof PERMISSIONS)[number]
+
+const ALL: readonly Permission[] = PERMISSIONS
+
+/** Everything except payroll — deliberate separation of duties. */
+const ADMIN_NO_PAYROLL: readonly Permission[] = ALL.filter(
+  (p) => p !== 'finance.view_payroll' && p !== 'finance.manage_payroll'
+)
 
 export const ROLE_PERMISSIONS: Readonly<Record<UserRole, readonly Permission[]>> = {
-  [ROLES.SUPER_ADMIN]: ALL_PERMISSIONS,
-  [ROLES.AGENCY_ADMIN]: ALL_PERMISSIONS,
+  super_admin: ALL,
+  agency_admin: ADMIN_NO_PAYROLL,
 
-  [ROLES.PROJECT_MANAGER]: [
-    'dashboard.view',
-    'clients.view',
-    'clients.manage',
-    'videos.view',
-    'videos.manage',
-    'calendar.view',
-    'calendar.manage',
-    'assets.view',
-    'assets.manage',
-    'packages.view',
-    'billing.view',
-    'team.view',
-    'tasks.view',
-    'tasks.manage',
-    'analytics.view',
-    'ai.use',
+  finance_manager: [
+    'dashboard.view', 'clients.view', 'projects.view',
+    'packages.view', 'packages.manage', 'analytics.view',
+    'finance.view', 'finance.manage', 'finance.view_revenue', 'finance.view_expenses',
+    'finance.view_profit', 'finance.view_cashflow', 'finance.view_payroll',
+    'finance.manage_payroll', 'finance.approve_expenses', 'finance.close_period',
+    'finance.export',
+    'subscriptions.view', 'subscriptions.manage',
+    'invoices.view', 'invoices.manage',
+    'users.view', 'audit.view', 'settings.view',
   ],
 
-  [ROLES.EDITOR]: [
-    'dashboard.view',
-    'clients.view',
-    'videos.view',
-    'videos.manage',
-    'calendar.view',
-    'assets.view',
-    'assets.manage',
-    'tasks.view',
-    'tasks.manage',
-    'ai.use',
+  accountant: [
+    'dashboard.view', 'clients.view', 'packages.view',
+    'finance.view', 'finance.manage', 'finance.view_revenue',
+    'finance.view_expenses', 'finance.view_cashflow', 'finance.export',
+    'subscriptions.view', 'invoices.view', 'invoices.manage', 'settings.view',
   ],
 
-  [ROLES.SOCIAL_MANAGER]: [
-    'dashboard.view',
-    'clients.view',
-    'videos.view',
-    'videos.manage',
-    'calendar.view',
-    'calendar.manage',
-    'assets.view',
-    'tasks.view',
-    'tasks.manage',
-    'analytics.view',
-    'ai.use',
+  hr_manager: [
+    'dashboard.view', 'users.view', 'users.create', 'users.edit',
+    'finance.view', 'finance.view_payroll', 'finance.manage_payroll', 'settings.view',
   ],
 
-  [ROLES.CREATOR]: [
-    'dashboard.view',
-    'videos.view',
-    'calendar.view',
-    'assets.view',
-    'tasks.view',
-    'ai.use',
+  operations: [
+    'dashboard.view', 'clients.view', 'clients.edit',
+    'projects.view', 'projects.create', 'projects.edit',
+    'videos.view', 'videos.manage', 'calendar.view', 'calendar.manage',
+    'assets.view', 'assets.manage', 'tasks.view', 'tasks.manage',
+    'bookings.view', 'bookings.manage', 'packages.view',
+    'analytics.view', 'users.view', 'settings.view',
   ],
 
-  [ROLES.ACCOUNTANT]: [
-    'dashboard.view',
-    'clients.view',
-    'packages.view',
-    'packages.manage',
-    'billing.view',
-    'billing.manage',
-    'analytics.view',
+  project_manager: [
+    'dashboard.view', 'clients.view', 'clients.create', 'clients.edit',
+    'projects.view', 'projects.create', 'projects.edit',
+    'videos.view', 'videos.manage', 'videos.review',
+    'calendar.view', 'calendar.manage', 'assets.view', 'assets.manage',
+    'tasks.view', 'tasks.manage', 'bookings.view', 'bookings.manage',
+    'packages.view', 'invoices.view', 'analytics.view', 'ai.use',
+    'users.view', 'settings.view',
   ],
 
-  [ROLES.CLIENT]: ['portal.access'],
+  account_manager: [
+    'dashboard.view', 'clients.view', 'clients.edit', 'projects.view',
+    'videos.view', 'calendar.view', 'packages.view', 'invoices.view',
+    'tasks.view', 'analytics.view',
+  ],
+
+  client_success: [
+    'dashboard.view', 'clients.view', 'clients.edit', 'projects.view',
+    'videos.view', 'calendar.view', 'packages.view', 'tasks.view',
+  ],
+
+  marketing_manager: [
+    'dashboard.view', 'clients.view', 'projects.view',
+    'videos.view', 'videos.manage', 'calendar.view', 'calendar.manage',
+    'assets.view', 'tasks.view', 'tasks.manage',
+    'analytics.view', 'ai.use', 'ai.manage',
+  ],
+
+  content_strategist: [
+    'dashboard.view', 'clients.view', 'projects.view', 'videos.view',
+    'calendar.view', 'calendar.manage', 'assets.view', 'tasks.view',
+    'analytics.view', 'ai.use',
+  ],
+
+  social_media_manager: [
+    'dashboard.view', 'clients.view', 'videos.view', 'videos.manage',
+    'calendar.view', 'calendar.manage', 'assets.view',
+    'tasks.view', 'tasks.manage', 'analytics.view', 'ai.use',
+  ],
+
+  media_buyer: [
+    'dashboard.view', 'clients.view', 'projects.view',
+    'analytics.view', 'calendar.view', 'tasks.view',
+  ],
+
+  sales_manager: [
+    'dashboard.view', 'clients.view', 'clients.create', 'clients.edit',
+    'packages.view', 'packages.manage', 'invoices.view',
+    'analytics.view', 'subscriptions.view',
+  ],
+
+  sales: ['dashboard.view', 'clients.view', 'clients.create', 'packages.view', 'tasks.view'],
+
+  videographer: [
+    'dashboard.view', 'videos.view', 'bookings.view', 'calendar.view',
+    'assets.view', 'assets.manage', 'tasks.view', 'tasks.manage',
+  ],
+
+  video_editor: [
+    'dashboard.view', 'clients.view', 'videos.view', 'videos.manage',
+    'calendar.view', 'assets.view', 'assets.manage',
+    'tasks.view', 'tasks.manage', 'ai.use',
+  ],
+
+  graphic_designer: [
+    'dashboard.view', 'videos.view', 'assets.view', 'assets.manage',
+    'calendar.view', 'tasks.view', 'tasks.manage',
+  ],
+
+  content_creator: [
+    'dashboard.view', 'videos.view', 'calendar.view',
+    'assets.view', 'tasks.view', 'ai.use',
+  ],
+
+  viewer: ['dashboard.view', 'clients.view', 'projects.view', 'videos.view', 'calendar.view', 'tasks.view'],
+
+  client: ['portal.access'],
 }
 
 export function permissionsForRole(role: UserRole | null): Permission[] {
@@ -258,6 +323,7 @@ export function permissionsForRole(role: UserRole | null): Permission[] {
 
 export function roleHasPermission(role: UserRole | null, permission: Permission): boolean {
   if (!role) return false
+  if (role === ROLES.SUPER_ADMIN) return true
   return (ROLE_PERMISSIONS[role] ?? []).includes(permission)
 }
 
@@ -270,25 +336,32 @@ export const SETUP_ROUTE = '/app/setup'
  * The landing route for a role.
  *
  * CRITICAL: every value returned here must be reachable by that role. Returning
- * a guarded route the role cannot enter is exactly what caused the redirect loop
- * that blanked the app — an unknown role now lands on SETUP_ROUTE, which sits
- * outside the role guards.
+ * a guarded route the role cannot enter is what caused the redirect loop that
+ * blanked the app — an unknown role lands on SETUP_ROUTE, outside all guards.
  */
 export function homeRouteForRole(role: UserRole | null): string {
   switch (role) {
-    case ROLES.SUPER_ADMIN:
-    case ROLES.AGENCY_ADMIN:
-    case ROLES.PROJECT_MANAGER:
-      return '/app/dashboard'
-    case ROLES.EDITOR:
-    case ROLES.SOCIAL_MANAGER:
-    case ROLES.CREATOR:
-      return '/app/pipeline'
-    case ROLES.ACCOUNTANT:
-      return '/app/billing'
     case ROLES.CLIENT:
       return '/client'
-    default:
+    case ROLES.FINANCE_MANAGER:
+    case ROLES.ACCOUNTANT:
+      return '/app/finance'
+    case ROLES.HR_MANAGER:
+      return '/app/users'
+    case ROLES.VIDEO_EDITOR:
+    case ROLES.VIDEOGRAPHER:
+    case ROLES.GRAPHIC_DESIGNER:
+    case ROLES.CONTENT_CREATOR:
+      return '/app/pipeline'
+    case ROLES.SOCIAL_MEDIA_MANAGER:
+    case ROLES.CONTENT_STRATEGIST:
+      return '/app/calendar'
+    case null:
+    case undefined:
       return SETUP_ROUTE
+    default:
+      // Everyone else lands on the dashboard, which requires only dashboard.view
+      // — a permission every internal role holds.
+      return '/app/dashboard'
   }
 }

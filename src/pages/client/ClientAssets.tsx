@@ -25,7 +25,9 @@ const TYPE_COLORS: Record<string, string> = {
 }
 
 export default function ClientAssets() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  // Portal data is keyed by the linked client record, not the auth user id.
+  const clientId = profile?.client_id ?? user?.id ?? ''
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -34,7 +36,7 @@ export default function ClientAssets() {
   useEffect(() => {
     if (!user) return
     setLoadError(null)
-    assetService.getByClient(user.id).then((data) => {
+    assetService.getByClient(clientId).then((data) => {
       setAssets(data)
       setLoading(false)
     })

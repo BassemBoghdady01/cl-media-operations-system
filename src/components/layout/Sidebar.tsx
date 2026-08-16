@@ -1,53 +1,86 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   LayoutDashboard, Users, Film, Calendar, Sparkles, FolderOpen,
   UserCheck, CheckSquare, Package, CreditCard, BarChart3, Settings,
-  Bell, LogOut, ChevronRight, Zap, Play, Camera,
+  Bell, LogOut, Camera, Wallet, TrendingUp, Receipt, PieChart,
+  Banknote, ShieldCheck, FileText, ArrowLeftRight, RefreshCw,
+  ClipboardCheck, ScrollText, SlidersHorizontal,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import type { Permission } from '../../config/roles'
+import { ROLE_LABELS } from '../../config/roles'
 import { getInitials } from '../../lib/utils'
-import { mockNotifications } from '../../data/mockData'
+import { useNotifications } from '../../hooks/useNotifications'
 
-const navGroups = [
+// Every item declares the permission it requires. Groups with no visible items
+// are not rendered at all — a user never sees a module they cannot open.
+// This is presentation only; RLS is what actually enforces access.
+const navGroups: {
+  label: string
+  items: { to: string; icon: typeof LayoutDashboard; label: string; permission: Permission; end?: boolean }[]
+}[] = [
   {
     label: 'Operations',
     items: [
-      { to: '/app/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/app/clients', icon: Users, label: 'Clients' },
-      { to: '/app/pipeline', icon: Film, label: 'Video Pipeline' },
-      { to: '/app/calendar', icon: Calendar, label: 'Content Calendar' },
-      { to: '/app/booking', icon: Camera, label: 'Shooting Bookings' },
+      { to: '/app/dashboard', icon: LayoutDashboard, label: 'Dashboard', permission: 'dashboard.view' },
+      { to: '/app/clients', icon: Users, label: 'Clients', permission: 'clients.view' },
+      { to: '/app/pipeline', icon: Film, label: 'Video Pipeline', permission: 'videos.view' },
+      { to: '/app/calendar', icon: Calendar, label: 'Content Calendar', permission: 'calendar.view' },
+      { to: '/app/booking', icon: Camera, label: 'Shooting Bookings', permission: 'bookings.view' },
+      { to: '/app/tasks', icon: CheckSquare, label: 'Tasks', permission: 'tasks.view' },
     ],
   },
   {
     label: 'Tools',
     items: [
-      { to: '/app/ai', icon: Sparkles, label: 'AI Studio' },
-      { to: '/app/assets', icon: FolderOpen, label: 'Asset Library' },
+      { to: '/app/ai', icon: Sparkles, label: 'AI Studio', permission: 'ai.use' },
+      { to: '/app/assets', icon: FolderOpen, label: 'Asset Library', permission: 'assets.view' },
     ],
   },
   {
-    label: 'Team & Work',
+    label: 'Finance',
     items: [
-      { to: '/app/team', icon: UserCheck, label: 'Team' },
-      { to: '/app/tasks', icon: CheckSquare, label: 'Tasks' },
+      { to: '/app/finance', icon: Wallet, label: 'Overview', permission: 'finance.view', end: true },
+      { to: '/app/finance/revenue', icon: TrendingUp, label: 'Revenue', permission: 'finance.view_revenue' },
+      { to: '/app/finance/expenses', icon: Receipt, label: 'Expenses', permission: 'finance.view_expenses' },
+      { to: '/app/finance/subscriptions', icon: RefreshCw, label: 'Subscriptions', permission: 'subscriptions.view' },
+      { to: '/app/billing', icon: CreditCard, label: 'Invoices', permission: 'invoices.view' },
+      { to: '/app/finance/payroll', icon: Banknote, label: 'Payroll', permission: 'finance.view_payroll' },
+      { to: '/app/finance/receivables', icon: ArrowLeftRight, label: 'Receivables', permission: 'finance.view_revenue' },
+      { to: '/app/finance/cashflow', icon: Wallet, label: 'Cash Flow', permission: 'finance.view_cashflow' },
+      { to: '/app/finance/profitability', icon: PieChart, label: 'Profitability', permission: 'finance.view_profit' },
+      { to: '/app/finance/reports', icon: FileText, label: 'Reports', permission: 'finance.view_profit' },
+      { to: '/app/finance/approvals', icon: ClipboardCheck, label: 'Approvals', permission: 'finance.approve_expenses' },
+      { to: '/app/finance/settings', icon: SlidersHorizontal, label: 'Finance Settings', permission: 'finance.manage' },
     ],
   },
   {
-    label: 'Business',
+    label: 'Team',
     items: [
-      { to: '/app/packages', icon: Package, label: 'Packages' },
-      { to: '/app/billing', icon: CreditCard, label: 'Billing' },
-      { to: '/app/analytics', icon: BarChart3, label: 'Analytics' },
+      { to: '/app/team', icon: UserCheck, label: 'Team', permission: 'users.view' },
+      { to: '/app/users', icon: Users, label: 'Users', permission: 'users.view' },
+      { to: '/app/roles', icon: ShieldCheck, label: 'Roles & Permissions', permission: 'users.manage_roles' },
+    ],
+  },
+  {
+    label: 'Insights',
+    items: [
+      { to: '/app/packages', icon: Package, label: 'Packages', permission: 'packages.view' },
+      { to: '/app/analytics', icon: BarChart3, label: 'Analytics', permission: 'analytics.view' },
+      { to: '/app/audit', icon: ScrollText, label: 'Audit Log', permission: 'audit.view' },
     ],
   },
 ]
 
 export default function Sidebar() {
-  const { user, logout } = useAuth()
+  const { user, role, logout, hasPermission } = useAuth()
   const navigate = useNavigate()
-  const unread = mockNotifications.filter((n) => !n.isRead).length
+  const { unread } = useNotifications()
+
+  const visibleGroups = navGroups
+    .map((g) => ({ ...g, items: g.items.filter((i) => hasPermission(i.permission)) }))
+    .filter((g) => g.items.length > 0)
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-[220px] flex flex-col z-40"
@@ -69,14 +102,14 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto no-scrollbar px-3 space-y-6 pb-4">
-        {navGroups.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.label}>
             <div className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest px-2 mb-2">
               {group.label}
             </div>
             <div className="space-y-0.5">
-              {group.items.map(({ to, icon: Icon, label }) => (
-                <NavLink key={to} to={to}
+              {group.items.map(({ to, icon: Icon, label, end }) => (
+                <NavLink key={to} to={to} end={end}
                   className={({ isActive }) =>
                     `nav-item ${isActive ? 'active' : ''}`
                   }>
@@ -124,11 +157,13 @@ export default function Sidebar() {
           <div className="flex items-center gap-3 px-2 py-2 rounded-xl">
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
               style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-              {getInitials(user?.name ?? 'BM')}
+              {getInitials(user?.name ?? 'EZ')}
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-xs font-semibold text-white truncate">{user?.name}</div>
-              <div className="text-[10px] text-slate-500 truncate">Admin</div>
+              <div className="text-[10px] text-slate-500 truncate">
+                {role ? ROLE_LABELS[role] : '—'}
+              </div>
             </div>
             <button onClick={() => { logout(); navigate('/login') }}
               className="text-slate-600 hover:text-red-400 transition-colors p-1">

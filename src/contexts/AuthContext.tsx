@@ -62,6 +62,11 @@ export interface ProfileRow {
   email: string
   role: string
   avatar_url?: string | null
+  department?: string | null
+  job_title?: string | null
+  status?: string
+  /** Set on portal users — links the login to its client record. */
+  client_id?: string | null
   created_at: string
 }
 
@@ -519,6 +524,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setSession(authedSession)
       const resolved = await resolveAndApply(authedSession)
+
+      // Stamp profiles.last_login_at (fire-and-forget; must never block login).
+      supabase.rpc('touch_last_login').then(
+        ({ error: touchErr }) => { if (touchErr) dbg('touch_last_login failed', touchErr) },
+        () => undefined
+      )
 
       // Anything short of `ready` goes to the setup route, which is deliberately
       // outside the role guards. Never redirect into a guarded route the user

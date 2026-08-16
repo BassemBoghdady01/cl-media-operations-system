@@ -2,7 +2,8 @@
  * EZ Marketing Agency — Media Operations System
  * Global application configuration
  *
- * Change VITE_DEMO_MODE=false in your .env to switch to live Supabase data.
+ * PRODUCTION ONLY: every service reads live Supabase data. There is no demo
+ * mode — an unconfigured deployment fails loudly instead of showing fake data.
  */
 
 export const APP_CONFIG = {
@@ -55,12 +56,8 @@ export const APP_CONFIG = {
    * Override individually in .env:
    *   VITE_ENABLE_AI=true
    *   VITE_ENABLE_REAL_AUTH=true
-   *   VITE_DEMO_MODE=false
    */
   features: {
-    /** When true, app uses seed data instead of Supabase */
-    demoMode: import.meta.env.VITE_DEMO_MODE !== 'false',
-
     /** When true, AI Studio calls the real /api/ai/generate endpoint */
     aiEnabled: import.meta.env.VITE_ENABLE_AI === 'true',
 
@@ -93,7 +90,7 @@ export const APP_CONFIG = {
     setup: '/app/setup',
   },
 
-  /** Storage bucket names (must match supabase/storage.sql) */
+  /** Storage bucket names (must match supabase/storage.sql + migration 009) */
   storage: {
     clientAssets: 'client-assets',
     rawFootage: 'raw-footage',
@@ -101,6 +98,8 @@ export const APP_CONFIG = {
     finalDeliveries: 'final-deliveries',
     thumbnails: 'thumbnails',
     invoices: 'invoices',
+    /** Private bucket for receipts and payment proofs (RLS in 009). */
+    financeAttachments: 'finance-attachments',
   },
 } as const
 

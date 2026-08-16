@@ -34,7 +34,9 @@ function UsageBar({ consumed, included, label, color }: {
 }
 
 export default function ClientPackage() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  // Portal data is keyed by the linked client record, not the auth user id.
+  const clientId = profile?.client_id ?? user?.id ?? ''
   const [pkg, setPkg] = useState<PackageType | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -42,7 +44,7 @@ export default function ClientPackage() {
   useEffect(() => {
     if (!user) return
     setLoadError(null)
-    packageService.getByClient(user.id).then((data) => {
+    packageService.getByClient(clientId).then((data) => {
       setPkg(data ?? null)
       setLoading(false)
     })

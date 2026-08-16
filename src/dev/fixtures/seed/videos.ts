@@ -1,4 +1,4 @@
-import type { Video, Comment } from '../../types'
+import type { Video, Comment } from '../../../types'
 
 export const seedVideos: Video[] = [
   {
@@ -108,7 +108,7 @@ export const seedComments: Comment[] = [
   },
   {
     id: 'cm3', videoId: 'v1', userId: 'tm3', userName: 'Omar Tarek',
-    userRole: 'editor', timestamp: 4, text: 'I can add a quick flash cut. Will also turn down music by 3db.',
+    userRole: 'video_editor', timestamp: 4, text: 'I can add a quick flash cut. Will also turn down music by 3db.',
     status: 'open', createdAt: '2024-05-05T15:10:00', isInternal: true,
   },
   {

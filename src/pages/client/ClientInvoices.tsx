@@ -16,7 +16,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 }
 
 export default function ClientInvoices() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  // Portal data is keyed by the linked client record, not the auth user id.
+  const clientId = profile?.client_id ?? user?.id ?? ''
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -24,7 +26,7 @@ export default function ClientInvoices() {
   useEffect(() => {
     if (!user) return
     setLoadError(null)
-    invoiceService.getByClient(user.id).then((data) => {
+    invoiceService.getByClient(clientId).then((data) => {
       setInvoices(data)
       setLoading(false)
     })

@@ -11,7 +11,9 @@ const PLATFORM_ICONS: Record<string, string> = {
 }
 
 export default function ClientCalendar() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  // Portal data is keyed by the linked client record, not the auth user id.
+  const clientId = profile?.client_id ?? user?.id ?? ''
   const [items, setItems] = useState<CalendarItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -21,7 +23,7 @@ export default function ClientCalendar() {
   useEffect(() => {
     if (!user) return
     setLoadError(null)
-    calendarService.getByClient(user.id, false).then((data) => {
+    calendarService.getByClient(clientId, false).then((data) => {
       setItems(data)
       setLoading(false)
     })

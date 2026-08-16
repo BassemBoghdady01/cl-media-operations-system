@@ -1,44 +1,73 @@
-import { supabase, isSupabaseReady } from '../lib/supabase'
-import { seedProjects } from '../data/seed'
+/**
+ * Projects — production service. No seed fallback.
+ */
+import { db, orThrow, dstr, type Row } from './serviceCore'
 import type { Project } from '../types'
+
+function mapProject(r: Row): Project {
+  return {
+    id: r.id,
+    agencyId: r.agency_id,
+    clientId: r.client_id,
+    clientName: r.clients?.name ?? '',
+    name: r.name ?? '',
+    type: r.type ?? '',
+    status: r.status ?? 'active',
+    startDate: dstr(r.start_date),
+    dueDate: dstr(r.due_date),
+    description: r.description ?? undefined,
+    progress: Number(r.progress ?? 0),
+    teamIds: r.team_ids ?? [],
+  }
+}
 
 export const projectService = {
   getAll: async (agencyId: string): Promise<Project[]> => {
-    if (!isSupabaseReady || !supabase) return seedProjects
-
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*, clients(name)')
+    const { data, error } = await db()
+      .from('projects').select('*, clients(name)')
       .eq('agency_id', agencyId)
       .order('created_at', { ascending: false })
-
-    if (error) { console.error('[projectService.getAll]', error); return seedProjects }
-    return (data ?? []) as unknown as Project[]
+    orThrow('projectService.getAll', error)
+    return (data ?? []).map(mapProject)
   },
 
   getByClient: async (clientId: string): Promise<Project[]> => {
-    if (!isSupabaseReady || !supabase) return seedProjects.filter((p) => p.clientId === clientId)
-
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
+    const { data, error } = await db()
+      .from('projects').select('*, clients(name)')
       .eq('client_id', clientId)
       .order('created_at', { ascending: false })
-
-    if (error) { console.error('[projectService.getByClient]', error); return [] }
-    return (data ?? []) as unknown as Project[]
+    orThrow('projectService.getByClient', error)
+    return (data ?? []).map(mapProject)
   },
 
   create: async (agencyId: string, project: Partial<Project>): Promise<Project> => {
-    if (!isSupabaseReady || !supabase) throw new Error('Connect Supabase to create projects')
-
-    const { data, error } = await supabase
+    const { data, error } = await db()
       .from('projects')
-      .insert({ agency_id: agencyId, ...project })
-      .select()
-      .single()
+      .insert({
+        agency_id: agencyId,
+        client_id: project.clientId,
+        name: project.name,
+        type: project.type,
+        status: project.status ?? 'active',
+        start_date: project.startDate || null,
+        due_date: project.dueDate || null,
+        description: project.description,
+        progress: project.progress ?? 0,
+        team_ids: project.teamIds ?? [],
+      })
+      .select('*, clients(name)').single()
+    orThrow('projectService.create', error)
+    return mapProject(data as Row)
+  },
 
-    if (error) throw error
-    return data as unknown as Project
+  update: async (id: string, updates: Partial<Project>): Promise<void> => {
+    const patch: Row = {}
+    if (updates.name !== undefined) patch.name = updates.name
+    if (updates.status !== undefined) patch.status = updates.status
+    if (updates.progress !== undefined) patch.progress = updates.progress
+    if (updates.dueDate !== undefined) patch.due_date = updates.dueDate || null
+    if (updates.description !== undefined) patch.description = updates.description
+    const { error } = await db().from('projects').update(patch).eq('id', id)
+    orThrow('projectService.update', error)
   },
 }

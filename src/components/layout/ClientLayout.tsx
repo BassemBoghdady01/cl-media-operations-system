@@ -3,11 +3,11 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Film, Calendar, Package, CreditCard, FolderOpen, Camera,
-  Bell, LogOut, ChevronDown, Menu, X, Eye, MessageSquare,
+  Bell, LogOut, Menu, X, Eye, Wallet,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { getInitials } from '../../lib/utils'
-import { mockNotifications } from '../../data/mockData'
+import { useNotifications } from '../../hooks/useNotifications'
 
 const clientNav = [
   { to: '/client', label: 'My Dashboard', icon: Eye, exact: true },
@@ -16,15 +16,15 @@ const clientNav = [
   { to: '/client/bookings', label: 'Shooting Bookings', icon: Camera },
   { to: '/client/assets', label: 'Brand Assets', icon: FolderOpen },
   { to: '/client/package', label: 'My Package', icon: Package },
+  { to: '/client/finance', label: 'Billing & Payments', icon: Wallet },
   { to: '/client/invoices', label: 'Invoices', icon: CreditCard },
-  { to: '/client/messages', label: 'Messages', icon: MessageSquare },
 ]
 
 export default function ClientLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const unread = mockNotifications.filter((n) => !n.isRead).length
+  const { unread } = useNotifications()
 
   const NavItems = () => (
     <>
@@ -95,7 +95,8 @@ export default function ClientLayout() {
 
         {/* Right: Notif + User */}
         <div className="flex items-center gap-3">
-          <button className="relative w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/[0.06] transition-colors"
+          <button onClick={() => navigate('/client/finance')}
+            className="relative w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/[0.06] transition-colors"
             style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
             <Bell className="w-4 h-4 text-slate-400" />
             {unread > 0 && (

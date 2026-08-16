@@ -17,7 +17,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 }
 
 export default function ClientBookings() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  // Portal data is keyed by the linked client record, not the auth user id.
+  const clientId = profile?.client_id ?? user?.id ?? ''
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -25,7 +27,7 @@ export default function ClientBookings() {
   useEffect(() => {
     if (!user) return
     setLoadError(null)
-    bookingService.getByClient(user.id).then((data) => {
+    bookingService.getByClient(clientId).then((data) => {
       setBookings(data)
       setLoading(false)
     })

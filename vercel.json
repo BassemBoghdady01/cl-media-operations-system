@@ -2,6 +2,12 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
+  "crons": [
+    {
+      "path": "/api/cron/finance-reminders",
+      "schedule": "0 6 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",

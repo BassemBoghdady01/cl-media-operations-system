@@ -1,4 +1,4 @@
-import type { TeamMember } from '../../types'
+import type { TeamMember } from '../../../types'
 
 export const seedTeamMembers: TeamMember[] = [
   {
@@ -15,19 +15,19 @@ export const seedTeamMembers: TeamMember[] = [
   },
   {
     id: 'tm3', agencyId: 'a1', name: 'Omar Tarek', email: 'omar@ezmarketing.agency',
-    role: 'editor', color: '#06B6D4', activeTasks: 15, completedThisWeek: 7,
+    role: 'video_editor', color: '#06B6D4', activeTasks: 15, completedThisWeek: 7,
     inProgressVideos: 5, availability: 'busy', clients: ['c1', 'c2', 'c3', 'c4', 'c5'],
     joinedAt: '2023-02-10',
   },
   {
     id: 'tm4', agencyId: 'a1', name: 'Nour Ibrahim', email: 'nour@ezmarketing.agency',
-    role: 'editor', color: '#EC4899', activeTasks: 9, completedThisWeek: 11,
+    role: 'video_editor', color: '#EC4899', activeTasks: 9, completedThisWeek: 11,
     inProgressVideos: 3, availability: 'available', clients: ['c1', 'c3'],
     joinedAt: '2023-06-01',
   },
   {
     id: 'tm5', agencyId: 'a1', name: 'Ahmed Samir', email: 'ahmed@ezmarketing.agency',
-    role: 'social_manager', color: '#10B981', activeTasks: 6, completedThisWeek: 14,
+    role: 'social_media_manager', color: '#10B981', activeTasks: 6, completedThisWeek: 14,
     inProgressVideos: 0, availability: 'available', clients: ['c2', 'c5'],
     joinedAt: '2023-08-20',
   },

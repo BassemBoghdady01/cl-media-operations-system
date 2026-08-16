@@ -1,4 +1,4 @@
-import type { Notification, ActivityItem } from '../../types'
+import type { Notification, ActivityItem } from '../../../types'
 
 export const seedNotifications: Notification[] = [
   {

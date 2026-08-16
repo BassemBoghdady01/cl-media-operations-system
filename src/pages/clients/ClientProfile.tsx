@@ -1,26 +1,163 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  ArrowLeft, Film, Package, CreditCard, FolderOpen, MessageSquare,
-  CheckCircle, Clock, ExternalLink, Mail, Phone, Globe, Plus, Edit,
+  ArrowLeft, Film, ExternalLink, Mail, Phone, Globe, Plus, Users,
 } from 'lucide-react'
-import { mockClients, mockVideos, mockPackages, mockInvoices, mockAssets } from '../../data/mockData'
+import { useAuth } from '../../contexts/AuthContext'
+import PageErrorState from '../../components/system/PageErrorState'
+import { clientService } from '../../services/clientService'
+import { videoService } from '../../services/videoService'
+import { packageService } from '../../services/packageService'
+import { invoiceService } from '../../services/invoiceService'
+import { assetService } from '../../services/assetService'
+import { userService, type ManagedUser } from '../../services/userService'
 import { statusColors, formatCurrency, formatDate, getInitials } from '../../lib/utils'
+import type { Client, Video, Package, Invoice, Asset } from '../../types'
 
 const tabs = ['Overview', 'Videos', 'Package', 'Invoices', 'Assets', 'Notes']
 
 export default function ClientProfile() {
   const { id } = useParams()
+  const { user, agency } = useAuth()
+  const agencyId = user?.agencyId || agency?.id || ''
+
   const [activeTab, setActiveTab] = useState('Overview')
 
-  const client = mockClients.find((c) => c.id === id) ?? mockClients[0]
-  const pkg = mockPackages.find((p) => p.clientId === client.id)
-  const videos = mockVideos.filter((v) => v.clientId === client.id)
-  const invoices = mockInvoices.filter((i) => i.clientId === client.id)
-  const assets = mockAssets.filter((a) => a.clientId === client.id)
+  const [client, setClient] = useState<Client | null>(null)
+  const [notFound, setNotFound] = useState(false)
+  const [pkg, setPkg] = useState<Package | null>(null)
+  const [videos, setVideos] = useState<Video[]>([])
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [manager, setManager] = useState<ManagedUser | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
-  const pct = pkg ? Math.round((pkg.consumedVideos / pkg.includedVideos) * 100) : 0
+  useEffect(() => {
+    if (!id) {
+      setNotFound(true)
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      setNotFound(false)
+      try {
+        const [clientData, videoData, pkgData, invoiceData, assetData] = await Promise.all([
+          clientService.getById(id),
+          videoService.getByClient(id),
+          packageService.getByClient(id),
+          invoiceService.getByClient(id),
+          assetService.getByClient(id),
+        ])
+        if (cancelled) return
+
+        if (!clientData) {
+          setClient(null)
+          setNotFound(true)
+          return
+        }
+
+        setClient(clientData)
+        setVideos(videoData)
+        setPkg(pkgData ?? null)
+        setInvoices(invoiceData)
+        setAssets(assetData)
+
+        // Account manager lookup is best-effort — the profile still renders without it.
+        if (clientData.accountManagerId) {
+          try {
+            const mgr = await userService.getUser(clientData.accountManagerId)
+            if (!cancelled) setManager(mgr ?? null)
+          } catch (mgrErr) {
+            console.error('[ClientProfile] account manager load failed', mgrErr)
+            if (!cancelled) setManager(null)
+          }
+        } else {
+          setManager(null)
+        }
+      } catch (err) {
+        if (cancelled) return
+        console.error('[ClientProfile] load failed', err)
+        setError(err instanceof Error ? err.message : 'Could not load this client.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [id, agencyId, reloadKey])
+
+  // "Enable Portal" — optimistic update, reverted if the write fails.
+  const setPortalAccess = async (enabled: boolean) => {
+    if (!client) return
+    const previous = client
+    setClient({ ...client, portalAccess: enabled })
+    try {
+      await clientService.update(client.id, { portalAccess: enabled })
+    } catch (err) {
+      console.error('[ClientProfile] portal toggle failed', err)
+      setClient(previous)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6 lg:p-8">
+        <Link to="/app/clients" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6">
+          <ArrowLeft className="w-3.5 h-3.5" /> All Clients
+        </Link>
+        <div className="flex items-center justify-center py-24">
+          <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 lg:p-8">
+        <Link to="/app/clients" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6">
+          <ArrowLeft className="w-3.5 h-3.5" /> All Clients
+        </Link>
+        <PageErrorState
+          title="We couldn't load this client"
+          message={error}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      </div>
+    )
+  }
+
+  if (notFound || !client) {
+    return (
+      <div className="p-6 lg:p-8">
+        <Link to="/app/clients" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6">
+          <ArrowLeft className="w-3.5 h-3.5" /> All Clients
+        </Link>
+        <div className="flex flex-col items-center justify-center text-center py-20">
+          <Users className="w-12 h-12 text-slate-700 mb-4" />
+          <h2 className="text-lg font-black text-white mb-2">Client not found</h2>
+          <p className="text-sm text-slate-400 max-w-md mb-6">
+            This client doesn't exist or may have been removed.
+          </p>
+          <Link to="/app/clients" className="btn-primary text-sm py-2.5 px-5">
+            <ArrowLeft className="w-4 h-4" /> Back to Clients
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  const pct = pkg && pkg.includedVideos > 0
+    ? Math.round((pkg.consumedVideos / pkg.includedVideos) * 100)
+    : 0
   const progressColor = pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : '#10B981'
 
   return (
@@ -49,10 +186,14 @@ export default function ClientProfile() {
                   {client.status}
                 </span>
               </div>
-              <p className="text-slate-400 text-sm">{client.industry} · {client.name}</p>
+              <p className="text-slate-400 text-sm">{[client.industry, client.name].filter(Boolean).join(' · ')}</p>
               <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-slate-500">
-                <span className="flex items-center gap-1.5"><Mail className="w-3 h-3" />{client.email}</span>
-                <span className="flex items-center gap-1.5"><Phone className="w-3 h-3" />{client.phone}</span>
+                {client.email && (
+                  <span className="flex items-center gap-1.5"><Mail className="w-3 h-3" />{client.email}</span>
+                )}
+                {client.phone && (
+                  <span className="flex items-center gap-1.5"><Phone className="w-3 h-3" />{client.phone}</span>
+                )}
                 {client.socialLinks?.instagram && (
                   <span className="flex items-center gap-1.5 text-pink-400">
                     <Globe className="w-3 h-3" />{client.socialLinks.instagram}
@@ -136,6 +277,9 @@ export default function ClientProfile() {
                     </Link>
                   )
                 })}
+                {videos.length === 0 && (
+                  <p className="text-xs text-slate-500 text-center py-6">No videos yet for this client.</p>
+                )}
               </div>
             </div>
 
@@ -149,23 +293,29 @@ export default function ClientProfile() {
                     { label: 'Revisions', used: pkg.consumedRevisions, total: pkg.includedRevisions },
                     { label: 'Shoot Days', used: pkg.consumedShootingDays, total: pkg.includedShootingDays },
                   ].map(({ label, used, total }) => {
-                    const p = Math.round((used / total) * 100)
+                    const p = total > 0 ? Math.round((used / total) * 100) : 0
                     const col = p >= 90 ? '#EF4444' : p >= 70 ? '#F59E0B' : '#10B981'
                     return (
                       <div key={label} className="text-center p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
                         <div className="text-base font-black" style={{ color: col }}>{used}/{total}</div>
                         <div className="text-[10px] text-slate-500 mt-0.5">{label}</div>
                         <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                          <div className="h-full rounded-full" style={{ width: `${p}%`, background: col }} />
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, p)}%`, background: col }} />
                         </div>
                       </div>
                     )
                   })}
                 </div>
                 <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>Renews {formatDate(pkg.renewalDate)}</span>
+                  <span>Renews {pkg.renewalDate ? formatDate(pkg.renewalDate) : '—'}</span>
                   <span>{formatCurrency(pkg.monthlyPrice)}/month</span>
                 </div>
+              </div>
+            )}
+            {!pkg && (
+              <div className="glass-blue rounded-2xl p-5">
+                <h3 className="text-sm font-bold text-white mb-2">Package Usage</h3>
+                <p className="text-xs text-slate-500">No active package for this client.</p>
               </div>
             )}
           </div>
@@ -174,14 +324,20 @@ export default function ClientProfile() {
           <div className="space-y-4">
             <div className="glass-blue rounded-2xl p-5">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Account Manager</h3>
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                  style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>BM</div>
-                <div>
-                  <p className="text-sm font-semibold text-white">Bassem Mahmoud</p>
-                  <p className="text-[11px] text-slate-500">bassem@ezmarketing.com</p>
+              {manager ? (
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                    style={{ background: `linear-gradient(135deg, ${manager.color}, ${manager.color}88)` }}>
+                    {getInitials(manager.full_name || manager.email)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white">{manager.full_name || manager.email}</p>
+                    <p className="text-[11px] text-slate-500">{manager.email}</p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <p className="text-xs text-slate-500">No account manager assigned.</p>
+              )}
             </div>
 
             <div className="glass-blue rounded-2xl p-5">
@@ -195,15 +351,16 @@ export default function ClientProfile() {
                   <ExternalLink className="w-3 h-3" /> Open Portal
                 </button>
               ) : (
-                <button className="btn-primary text-xs py-2 w-full justify-center">Enable Portal</button>
+                <button className="btn-primary text-xs py-2 w-full justify-center"
+                  onClick={() => void setPortalAccess(true)}>
+                  Enable Portal
+                </button>
               )}
             </div>
 
             <div className="glass-blue rounded-2xl p-5">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Internal Notes</h3>
-              <p className="text-xs text-slate-500 italic leading-relaxed">
-                Client prefers quick responses via WhatsApp. Has 2 upcoming campaigns in Q3. Strong potential for upsell to 20-video package.
-              </p>
+              <p className="text-xs text-slate-500 italic leading-relaxed">No internal notes yet.</p>
               <p className="text-[10px] text-slate-600 mt-2">🔒 Visible to team only</p>
             </div>
           </div>
@@ -236,6 +393,46 @@ export default function ClientProfile() {
               </Link>
             )
           })}
+          {videos.length === 0 && (
+            <p className="text-slate-500 text-sm text-center py-8">No videos yet for this client.</p>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'Package' && (
+        <div className="max-w-2xl">
+          {pkg ? (
+            <div className="glass-blue rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-sm font-bold text-white">{pkg.name}</h3>
+                <span className="badge" style={{ background: statusColors[pkg.status]?.bg, color: statusColors[pkg.status]?.text }}>
+                  {pkg.status}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-4 mb-5">
+                {[
+                  { label: 'Videos', used: pkg.consumedVideos, total: pkg.includedVideos },
+                  { label: 'Revisions', used: pkg.consumedRevisions, total: pkg.includedRevisions },
+                  { label: 'Shoot Days', used: pkg.consumedShootingDays, total: pkg.includedShootingDays },
+                ].map(({ label, used, total }) => {
+                  const p = total > 0 ? Math.round((used / total) * 100) : 0
+                  const col = p >= 90 ? '#EF4444' : p >= 70 ? '#F59E0B' : '#10B981'
+                  return (
+                    <div key={label} className="text-center p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                      <div className="text-base font-black" style={{ color: col }}>{used}/{total}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{label}</div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <span>Renews {pkg.renewalDate ? formatDate(pkg.renewalDate) : '—'}</span>
+                <span>{formatCurrency(pkg.monthlyPrice)}/month</span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-slate-500 text-sm text-center py-8">No active package for this client.</p>
+          )}
         </div>
       )}
 
@@ -262,19 +459,24 @@ export default function ClientProfile() {
       )}
 
       {activeTab === 'Assets' && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {assets.map((a) => (
-            <div key={a.id} className="glass-blue rounded-xl p-4 hover:border-blue-500/30 transition-all cursor-pointer">
-              <div className="w-10 h-10 rounded-xl mb-3 flex items-center justify-center text-lg"
-                style={{ background: 'rgba(59,130,246,0.1)' }}>
-                {a.type === 'logo' ? '🎨' : a.type === 'video' ? '🎬' : a.type === 'music' ? '🎵' : a.type === 'document' ? '📄' : '📁'}
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {assets.map((a) => (
+              <div key={a.id} className="glass-blue rounded-xl p-4 hover:border-blue-500/30 transition-all cursor-pointer">
+                <div className="w-10 h-10 rounded-xl mb-3 flex items-center justify-center text-lg"
+                  style={{ background: 'rgba(59,130,246,0.1)' }}>
+                  {a.type === 'logo' ? '🎨' : a.type === 'video' ? '🎬' : a.type === 'music' ? '🎵' : a.type === 'document' ? '📄' : '📁'}
+                </div>
+                <p className="text-xs font-semibold text-white truncate mb-0.5">{a.name}</p>
+                <p className="text-[10px] text-slate-500">{[a.folder, a.format, a.size].filter(Boolean).join(' · ')}</p>
+                {a.isApproved && <span className="text-[10px] text-green-400 mt-1 block">✓ Approved</span>}
               </div>
-              <p className="text-xs font-semibold text-white truncate mb-0.5">{a.name}</p>
-              <p className="text-[10px] text-slate-500">{a.folder} · {a.format} · {a.size}</p>
-              {a.isApproved && <span className="text-[10px] text-green-400 mt-1 block">✓ Approved</span>}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          {assets.length === 0 && (
+            <p className="text-slate-500 text-sm text-center py-8">No assets uploaded for this client yet.</p>
+          )}
+        </>
       )}
 
       {activeTab === 'Notes' && (
@@ -287,9 +489,13 @@ export default function ClientProfile() {
           </div>
           <textarea
             className="input resize-none h-40 text-sm leading-relaxed"
-            defaultValue="Client prefers quick responses via WhatsApp. Has 2 upcoming campaigns in Q3. Strong potential for upsell to 20-video package. Contact person Farida is very responsive, usually replies within 1 hour."
+            placeholder="Add internal notes about this client…"
+            disabled
           />
-          <button className="btn-primary text-xs py-2 mt-3">Save Notes</button>
+          <button className="btn-primary text-xs py-2 mt-3 opacity-50 cursor-not-allowed" disabled
+            title="Notes storage is not available yet">
+            Save Notes
+          </button>
         </div>
       )}
     </motion.div>

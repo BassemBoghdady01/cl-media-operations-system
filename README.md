@@ -1,37 +1,30 @@
 # EZ Marketing Agency — Media Operations System
 
-End-to-end media operations platform for content agencies.
+End-to-end operations platform for the agency: clients, video pipeline,
+calendar, AI studio, tasks, bookings — plus a full **finance ERP layer**
+(ledger, subscriptions, payroll, receivables, cash flow, P&L, monthly close),
+**user & role management** and an **audit log**. Production only: every screen
+reads real Supabase data; there is no demo mode.
 
 ---
 
 ## Quick Start
 
 ```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
+npm install       # install dependencies
+npm run dev       # start dev server → http://localhost:5173
+npm run build     # typecheck + production build
+npm run preview   # preview the production build
 ```
-
-Open [http://localhost:5173](http://localhost:5173)
 
 ---
 
 ## Authentication
 
-Authentication is handled entirely by **Supabase Auth**. There are no built-in
-demo or seed credentials — accounts must exist in your Supabase project.
-
-Requires `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and
-`VITE_ENABLE_REAL_AUTH=true`. Without them, login and signup fail with a
-configuration error rather than falling back to hardcoded accounts.
+Handled entirely by **Supabase Auth** — there are no demo or seed
+credentials. Requires `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` and
+`VITE_ENABLE_REAL_AUTH=true`; without them, login fails with a configuration
+error instead of admitting anyone.
 
 **Sign-in accepts:**
 
@@ -40,65 +33,53 @@ configuration error rather than falling back to hardcoded accounts.
 | Full email (`omar@ezmarketing.agency`) | used verbatim |
 | Bare username (`omar`) | `omar@ezmarketing.agency`, then `omar@cl.agency` on rejection |
 
-The `@cl.agency` retry is temporary backward compatibility for accounts created
-before the rebrand — see **HANDOVER.md → Email Domain Migration**.
+The `@cl.agency` retry is temporary backward compatibility — see
+**HANDOVER.md → Email Domain Migration**.
 
-**Creating users:** invite via Supabase Dashboard → Authentication → Users, or
-use the in-app signup flow (`/signup`), which calls `supabase.auth.signUp()`.
-
-> Seed data still drives dashboards, clients, and billing views while
-> `VITE_DEMO_MODE=true`. That is display data only — it has never been part of
-> the auth path. See `DEMO_REMOVAL_GUIDE.md`.
+**Creating users:** in-app at `/app/users` (secure server-side API using the
+service-role key), or self-signup at `/signup`.
 
 ---
 
 ## Environment Variables
 
-Copy `.env.example` to `.env.local`:
+Copy `.env.example` to `.env` and fill in:
 
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_ENABLE_REAL_AUTH=false
-VITE_DEMO_MODE=true
+VITE_SUPABASE_ANON_KEY=your-publishable-key
+VITE_ENABLE_REAL_AUTH=true
 VITE_ENABLE_AI=false
 VITE_APP_URL=https://your-app.vercel.app
-OPENAI_API_KEY=sk-...   # server-side only
+
+# Server-side only — NEVER prefix with VITE_
+SUPABASE_SERVICE_ROLE_KEY=...   # admin user API + cron
+CRON_SECRET=...                 # protects /api/cron/finance-reminders
+OPENAI_API_KEY=sk-...           # AI Studio
 ```
 
 ---
 
-## Vercel Deployment
+## Database Setup
 
-1. Connect your repo to Vercel
-2. Build command: `npm run build`
-3. Output directory: `dist`
-4. Add environment variables in Vercel Dashboard
-5. **Important**: `OPENAI_API_KEY` must NOT have the `VITE_` prefix (server-side only)
-
----
-
-## Supabase Setup
-
-See [`supabase/README.md`](supabase/README.md) for full instructions.
-
-Quick version:
-```sql
--- Run in Supabase SQL Editor, in order:
--- 1. supabase/schema.sql
--- 2. supabase/rls-policies.sql
--- 3. supabase/storage.sql
--- 4. supabase/seed.sql (optional)
-```
+1. Base schema: `supabase/schema.sql` → `rls-policies.sql` → `storage.sql`
+   (`seed.sql` is for local development only — **never production**).
+2. Migrations, in the exact order in **`PRODUCTION_MIGRATION.md`**:
+   `fix_auth_profile_bootstrap` → `002_roles_permissions` →
+   `003_finance_core` → `004_subscriptions_recurring` → `005_payroll` →
+   `006_finance_rls` → `007_finance_functions` → `008_finance_defaults` →
+   `009_finance_ops`.
+3. Promote the first Super Admin (one-liner in the runbook), then finish
+   setup from **/app/onboarding**.
 
 ---
 
-## Going Production
+## Deployment (Vercel)
 
-1. Follow `supabase/README.md` to set up the database
-2. Follow `DEMO_REMOVAL_GUIDE.md` to switch from seed to real data
-3. Deploy to Vercel with production env vars
-4. Add `OPENAI_API_KEY` for AI Studio
+Build `npm run build`, output `dist`, framework Vite. Set the env vars above,
+then verify the daily cron (`/api/cron/finance-reminders`, 06:00 UTC — see
+`vercel.json`) with
+`curl "https://YOUR-DOMAIN/api/cron/finance-reminders?secret=$CRON_SECRET"`.
 
 ---
 
@@ -107,35 +88,28 @@ Quick version:
 ```
 src/
 ├── components/
-│   ├── auth/           # ProtectedRoute, RoleGuard
-│   └── layout/         # AppLayout, ClientLayout, Sidebar, Navbar
-├── config/
-│   └── app.ts          # Feature flags and app constants
-├── contexts/
-│   └── AuthContext.tsx # Auth state (Supabase + seed fallback)
-├── data/
-│   ├── seed/           # Sample data for presentations
-│   └── mockData.ts     # Re-export barrel (backward compat)
-├── lib/
-│   ├── supabase.ts     # Supabase client
-│   └── utils.ts        # Utility functions
-├── pages/
-│   ├── app/dashboard   # Internal app pages
-│   └── client/         # Client portal pages
-├── services/           # Data layer (Supabase + seed fallback)
-└── types/
-    └── index.ts        # All TypeScript types
+│   ├── auth/            # ProtectedRoute, RoleGuard, PermissionGuard
+│   ├── finance/         # FinanceKit UI primitives, AttachmentField
+│   ├── layout/          # AppLayout, ClientLayout, Sidebar, Navbar
+│   └── system/          # Error boundaries and states
+├── config/              # app.ts (flags/buckets), roles.ts (roles+permissions mirror)
+├── contexts/            # AuthContext (Supabase Auth only)
+├── dev/fixtures/        # OLD demo data — imported by NOTHING in production
+├── hooks/               # useNotifications
+├── lib/                 # supabase client, finance formatters, database row types
+├── pages/               # dashboard, clients, pipeline, calendar, finance/*,
+│                        # users/*, audit, onboarding, client portal
+├── services/            # Data layer — real Supabase only, throws on failure
+└── types/               # App-level TypeScript types
 
 api/
-└── ai/
-    └── generate.ts     # Vercel serverless AI function
+├── admin/users.ts       # Secure user creation/role/deactivation (service role)
+├── ai/generate.ts       # AI Studio serverless function
+└── cron/finance-reminders.ts  # Daily billing/reminder/notification job
 
 supabase/
-├── schema.sql          # Database tables, indexes, triggers
-├── rls-policies.sql    # Row level security
-├── storage.sql         # Storage buckets and policies
-├── seed.sql            # Initial data for Supabase
-└── README.md           # Supabase setup guide
+├── schema.sql · rls-policies.sql · storage.sql · seed.sql (dev only)
+└── migrations/          # 002–009 + auth bootstrap fix (run in order)
 ```
 
 ---
@@ -144,7 +118,10 @@ supabase/
 
 | File | Purpose |
 |------|---------|
-| `HANDOVER.md` | Complete system documentation for client |
-| `DEMO_REMOVAL_GUIDE.md` | How to switch from seed to production data |
-| `CLIENT_PRESENTATION_CHECKLIST.md` | Demo script for client walkthroughs |
-| `supabase/README.md` | Supabase setup instructions |
+| `FINANCE_SETUP.md` | First-time production setup, step by step |
+| `FINANCE_MODULE.md` | Finance architecture, routes, lifecycles, storage, cron |
+| `ROLES_AND_PERMISSIONS.md` | 21 roles, 48 permissions, RLS, secure user creation |
+| `PRODUCTION_MIGRATION.md` | Exact SQL run order, env vars, cron, rollback |
+| `HANDOVER.md` | Complete system documentation |
+| `CLIENT_PRESENTATION_CHECKLIST.md` | Walkthrough script |
+| `supabase/README.md` | Supabase base-schema setup |
