@@ -8,6 +8,7 @@ import {
   Star, Shield, Layers, AlignLeft, Hash, Target,
   AlertTriangle, X,
 } from 'lucide-react'
+import BrandLogo from '../components/brand/BrandLogo'
 
 // ─── Floating cards ──────────────────────────────────────────────────────────
 
@@ -185,10 +186,7 @@ export default function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 lg:px-12 h-16"
         style={{ background: 'rgba(4,8,26,0.88)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center font-black text-white text-sm"
-            style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-            EZ
-          </div>
+          <BrandLogo size={32} radius={12} />
           <span className="text-[15px] font-bold text-white">EZ Marketing Agency</span>
           <span className="hidden sm:block text-[10px] text-slate-600 pl-2 border-l border-slate-800">Media Operations System</span>
         </div>
@@ -667,8 +665,7 @@ export default function LandingPage() {
       <footer className="py-10 px-6" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-white text-xs"
-              style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>EZ</div>
+            <BrandLogo size={28} radius={8} />
             <span className="text-sm font-bold text-white">EZ Marketing Agency</span>
             <span className="text-xs text-slate-600">Media Operations System</span>
           </div>

@@ -12,6 +12,7 @@ import type { Permission } from '../../config/roles'
 import { ROLE_LABELS } from '../../config/roles'
 import { getInitials } from '../../lib/utils'
 import { useNotifications } from '../../hooks/useNotifications'
+import BrandLogo from '../brand/BrandLogo'
 
 // Every item declares the permission it requires. Groups with no visible items
 // are not rendered at all — a user never sees a module they cannot open.
@@ -89,10 +90,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="px-5 pt-6 pb-5">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-white text-base flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-            EZ
-          </div>
+          <BrandLogo size={36} radius={12} />
           <div>
             <div className="text-[15px] font-bold text-white leading-tight">EZ Marketing</div>
             <div className="text-[10px] text-slate-500 leading-tight">Agency · Media Ops</div>

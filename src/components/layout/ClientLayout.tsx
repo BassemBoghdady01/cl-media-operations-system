@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext'
 import { getInitials } from '../../lib/utils'
 import { useNotifications } from '../../hooks/useNotifications'
+import BrandLogo from '../brand/BrandLogo'
 
 const clientNav = [
   { to: '/client', label: 'My Dashboard', icon: Eye, exact: true },
@@ -62,10 +63,7 @@ export default function ClientLayout() {
         {/* Left: Logo + Client tag */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center font-black text-white text-sm"
-              style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-              EZ
-            </div>
+            <BrandLogo size={32} radius={12} />
             <div className="hidden sm:block">
               <div className="text-[13px] font-bold text-white leading-tight whitespace-nowrap">EZ Marketing Agency</div>
               <div className="text-[9px] text-slate-600 leading-tight">Client Portal</div>

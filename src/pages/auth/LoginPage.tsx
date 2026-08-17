@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import BrandLogo from '../../components/brand/BrandLogo'
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('')
@@ -48,10 +49,7 @@ export default function LoginPage() {
 
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3 mb-10">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center font-black text-white text-lg"
-              style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-              EZ
-            </div>
+            <BrandLogo size={40} radius={16} />
             <div>
               <div className="text-[15px] font-bold text-white leading-tight">EZ Marketing Agency</div>
               <div className="text-[10px] text-slate-500 leading-tight">Media Operations System</div>
@@ -168,26 +166,26 @@ export default function LoginPage() {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="relative">
           <div className="text-3xl font-black text-white leading-tight mb-4">
-            "We replaced 6 tools
-            <br />with <span className="gradient-text">one system</span>"
+            Six tools replaced
+            <br />with <span className="gradient-text">one system</span>
           </div>
           <p className="text-slate-400 text-sm mb-8 leading-relaxed">
-            EZ Marketing Agency gave our team the clarity we were missing. Every video, every client, every deadline — visible in one place.
+            Every video, every client, every deadline and every pound — visible in one place,
+            from the production pipeline to payroll and P&L.
           </p>
           <div className="flex items-center gap-3 mb-10">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white"
-              style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>MK</div>
+            <BrandLogo size={40} radius={20} />
             <div>
-              <div className="text-sm font-semibold text-white">Mona Khalil</div>
-              <div className="text-xs text-slate-500">Head of Content, TechVision</div>
+              <div className="text-sm font-semibold text-white">EZ Marketing Agency</div>
+              <div className="text-xs text-slate-500">Media Operations System</div>
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             {[
-              { val: '3×', label: 'Faster delivery' },
-              { val: '90%', label: 'Less revisions' },
-              { val: '100%', label: 'Package visibility' },
+              { val: '🎬', label: 'Pipeline to posted' },
+              { val: '📊', label: 'Real finance & P&L' },
+              { val: '🤝', label: 'Client portal' },
             ].map(({ val, label }) => (
               <div key={label} className="glass-blue rounded-xl p-4 text-center">
                 <div className="text-2xl font-black gradient-text-blue">{val}</div>

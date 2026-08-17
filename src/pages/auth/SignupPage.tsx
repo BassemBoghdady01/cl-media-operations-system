@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Zap, Mail, Lock, User, Building2, ArrowRight, Check } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import BrandLogo from '../../components/brand/BrandLogo'
 
 const steps = ['Agency Info', 'Your Account', 'Use Case']
 
@@ -80,10 +81,7 @@ export default function SignupPage() {
 
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 mb-8">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-white text-base"
-            style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-            EZ
-          </div>
+          <BrandLogo size={36} radius={12} />
           <span className="text-[15px] font-bold text-white">EZ Marketing Agency</span>
         </Link>
 
