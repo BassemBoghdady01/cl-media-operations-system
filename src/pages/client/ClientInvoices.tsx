@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { CreditCard, Download, CheckCircle, AlertCircle, Clock } from 'lucide-react'
+import { CreditCard, CheckCircle, AlertCircle, Clock } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { invoiceService } from '../../services/invoiceService'
@@ -39,6 +39,19 @@ export default function ClientInvoices() {
 
   const totalPaid = invoices.filter((i) => i.status === 'paid').reduce((s, i) => s + i.total, 0)
   const totalPending = invoices.filter((i) => ['sent', 'overdue'].includes(i.status)).reduce((s, i) => s + i.total, 0)
+
+  if (loadError) {
+    return (
+      <PageErrorState
+        message={loadError}
+        onRetry={() => {
+          setLoadError(null)
+          setLoading(true)
+          window.location.reload()
+        }}
+      />
+    )
+  }
 
   return (
     <div className="px-5 py-6 max-w-4xl mx-auto">
@@ -118,13 +131,8 @@ export default function ClientInvoices() {
                     {status.label}
                   </span>
                 </div>
-
-                {invoice.status !== 'draft' && (
-                  <button className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 hover:text-blue-400 transition-colors"
-                    style={{ background: 'rgba(255,255,255,0.04)' }}>
-                    <Download className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                {/* No download control: invoices have no stored PDF in this build.
+                    Reintroduce only when a real file URL exists on the invoice. */}
               </motion.div>
             )
           })}

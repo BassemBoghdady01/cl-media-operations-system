@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, Download, Search, X, Paperclip } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { toastSuccess, toastError } from '../../lib/toast'
 import PageErrorState from '../../components/system/PageErrorState'
 import AttachmentField from '../../components/finance/AttachmentField'
 import {
@@ -217,7 +218,11 @@ export default function TransactionsPage({ type }: Props) {
           type={type} agencyId={agencyId} userId={user?.id ?? ''}
           categories={categories} accounts={accounts} services={services} clients={clients}
           onClose={() => setShowForm(false)}
-          onSaved={() => { setShowForm(false); load() }}
+          onSaved={() => {
+            setShowForm(false)
+            toastSuccess(type === 'income' ? 'Income recorded' : 'Expense recorded')
+            load()
+          }}
         />
       )}
     </div>
@@ -412,6 +417,7 @@ function AttachmentLinkButton({ refValue }: { refValue: string }) {
       window.open(url, '_blank', 'noopener,noreferrer')
     } catch (err) {
       console.error('[Transactions] could not open attachment', err)
+      toastError('Could not open the attachment — it may have been removed.')
     } finally {
       setOpening(false)
     }

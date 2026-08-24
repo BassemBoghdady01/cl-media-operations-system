@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { videoService } from '../../services/videoService'
 import { notificationService } from '../../services/notificationService'
+import { toastSuccess, toastError } from '../../lib/toast'
 import { statusColors, priorityColors, platformLabels, timeAgo, getInitials } from '../../lib/utils'
 import type { Video, Comment } from '../../types'
 
@@ -94,8 +95,10 @@ export default function VideoDetail() {
       })
       setComments((prev) => [...prev, created])
       setNewComment('')
+      toastSuccess('Comment added.')
     } catch (err) {
       console.error('[VideoDetail] add comment failed', err)
+      toastError(err instanceof Error ? err.message : 'Could not post your comment.')
     } finally {
       setPosting(false)
     }
@@ -112,6 +115,7 @@ export default function VideoDetail() {
 
       await videoService.update(video.id, patch)
       setVideo({ ...video, ...patch })
+      toastSuccess(decision === 'approve' ? 'Video approved.' : 'Revision requested.')
 
       // Notify the assigned editor about the review decision — non-fatal.
       if (video.assignedEditor) {
@@ -133,6 +137,7 @@ export default function VideoDetail() {
       }
     } catch (err) {
       console.error('[VideoDetail] review action failed', err)
+      toastError(err instanceof Error ? err.message : 'Could not save the review decision.')
     } finally {
       setActing(false)
     }
@@ -210,13 +215,27 @@ export default function VideoDetail() {
             <div className="aspect-video bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center relative">
               <div className="absolute inset-0 opacity-20"
                 style={{ background: `radial-gradient(circle at 50% 50%, ${video.clientColor}, transparent)` }} />
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                className="w-16 h-16 rounded-full flex items-center justify-center shadow-2xl"
-                style={{ background: 'rgba(59,130,246,0.9)', boxShadow: '0 0 40px rgba(59,130,246,0.4)' }}>
-                <Play className="w-7 h-7 text-white ml-1" fill="white" />
-              </motion.button>
+              {video.finalUrl ? (
+                <motion.a
+                  href={video.finalUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Play video"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="w-16 h-16 rounded-full flex items-center justify-center shadow-2xl"
+                  style={{ background: 'rgba(59,130,246,0.9)', boxShadow: '0 0 40px rgba(59,130,246,0.4)' }}>
+                  <Play className="w-7 h-7 text-white ml-1" fill="white" />
+                </motion.a>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center"
+                    style={{ background: 'rgba(100,116,139,0.2)' }}>
+                    <Film className="w-7 h-7 text-slate-500" />
+                  </div>
+                  <span className="text-[11px] text-slate-500">No video file uploaded yet</span>
+                </div>
+              )}
               <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
                 <div>
                   <p className="text-white font-semibold text-sm">{video.title}</p>
@@ -396,9 +415,10 @@ export default function VideoDetail() {
                     <div className="text-center py-8">
                       <FileText className="w-8 h-8 text-slate-700 mx-auto mb-2" />
                       <p className="text-xs text-slate-500 mb-3">No script yet.</p>
-                      <button className="btn-primary text-xs py-2 px-4">
-                        <Sparkles className="w-3.5 h-3.5" /> Generate with AI
-                      </button>
+                      {/* Script generation lives in the AI Studio */}
+                      <Link to="/app/ai" className="btn-primary text-xs py-2 px-4 inline-flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" /> Generate in AI Studio
+                      </Link>
                     </div>
                   )}
                 </div>
@@ -439,9 +459,10 @@ export default function VideoDetail() {
                   {!video.caption && !video.scheduledDate && (
                     <div className="text-center py-8">
                       <p className="text-xs text-slate-500 mb-3">No delivery info yet.</p>
-                      <button className="btn-primary text-xs py-2 px-4">
-                        <Sparkles className="w-3.5 h-3.5" /> Generate Caption
-                      </button>
+                      {/* Caption generation lives in the AI Studio */}
+                      <Link to="/app/ai" className="btn-primary text-xs py-2 px-4 inline-flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" /> Generate in AI Studio
+                      </Link>
                     </div>
                   )}
                 </div>

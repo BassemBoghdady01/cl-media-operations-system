@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
-import { Package, Plus, TrendingUp, Film, AlertTriangle } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Package, Plus, TrendingUp, Film, AlertTriangle, X } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { packageService } from '../../services/packageService'
 import { clientService } from '../../services/clientService'
+import { toastSuccess, toastError } from '../../lib/toast'
 import { formatCurrency, formatDate, getInitials } from '../../lib/utils'
 import type { Client, Package as PkgType } from '../../types'
 
@@ -105,15 +106,138 @@ function PackageCard({ pkg, clientColor }: { pkg: PkgType; clientColor: string }
   )
 }
 
+interface NewPackageForm {
+  clientId: string
+  name: string
+  monthlyPrice: string
+  includedVideos: string
+  includedRevisions: string
+  includedShootingDays: string
+  renewalDate: string
+  notes: string
+}
+
+const EMPTY_FORM: NewPackageForm = {
+  clientId: '', name: '', monthlyPrice: '', includedVideos: '',
+  includedRevisions: '', includedShootingDays: '', renewalDate: '', notes: '',
+}
+
+function NewPackageModal({
+  clients, saving, error, onSubmit, onClose,
+}: {
+  clients: Client[]
+  saving: boolean
+  error: string | null
+  onSubmit: (form: NewPackageForm) => void
+  onClose: () => void
+}) {
+  const [form, setForm] = useState<NewPackageForm>(EMPTY_FORM)
+  const set = (patch: Partial<NewPackageForm>) => setForm((f) => ({ ...f, ...patch }))
+  const valid = form.clientId && form.name.trim() && form.monthlyPrice !== '' && Number.isFinite(Number(form.monthlyPrice))
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+      onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-base font-black text-white">New Package</h2>
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Client</label>
+            <select className="input py-2 text-xs mt-1" value={form.clientId}
+              onChange={(e) => set({ clientId: e.target.value })}>
+              <option value="">Select a client…</option>
+              {clients.map((c) => <option key={c.id} value={c.id}>{c.brandName || c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Package Name</label>
+            <input className="input py-2 text-xs mt-1" placeholder="e.g. Growth — 8 videos/month"
+              value={form.name} onChange={(e) => set({ name: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Monthly Price (USD)</label>
+            <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
+              value={form.monthlyPrice} onChange={(e) => set({ monthlyPrice: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Videos</label>
+              <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
+                value={form.includedVideos} onChange={(e) => set({ includedVideos: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Revisions</label>
+              <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
+                value={form.includedRevisions} onChange={(e) => set({ includedRevisions: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Shoot Days</label>
+              <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
+                value={form.includedShootingDays} onChange={(e) => set({ includedShootingDays: e.target.value })} />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Renewal Date (optional)</label>
+            <input type="date" className="input py-2 text-xs mt-1" value={form.renewalDate}
+              onChange={(e) => set({ renewalDate: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Notes (optional)</label>
+            <textarea className="input py-2 text-xs mt-1 min-h-[64px]" placeholder="Anything worth remembering about this deal…"
+              value={form.notes} onChange={(e) => set({ notes: e.target.value })} />
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-400 rounded-xl px-3 py-2"
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              {error}
+            </p>
+          )}
+
+          <button
+            className="btn-primary w-full justify-center text-xs py-2.5 disabled:opacity-50"
+            disabled={!valid || saving}
+            onClick={() => onSubmit(form)}>
+            {saving ? 'Creating…' : 'Create Package'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function PackagesPage() {
-  const { user, agency } = useAuth()
+  const { user, agency, hasPermission } = useAuth()
   const agencyId = user?.agencyId || agency?.id || ''
+  const canManage = hasPermission('packages.manage')
 
   const [packages, setPackages] = useState<PkgType[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+
+  const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!agencyId) {
@@ -145,6 +269,35 @@ export default function PackagesPage() {
     load()
     return () => { cancelled = true }
   }, [agencyId, reloadKey])
+
+  const openCreate = () => { setCreateError(null); setShowCreate(true) }
+
+  const createPackage = async (form: NewPackageForm) => {
+    setCreating(true)
+    setCreateError(null)
+    try {
+      await packageService.create(agencyId, {
+        clientId: form.clientId,
+        name: form.name.trim(),
+        monthlyPrice: Number(form.monthlyPrice) || 0,
+        includedVideos: Number(form.includedVideos) || 0,
+        includedRevisions: Number(form.includedRevisions) || 0,
+        includedShootingDays: Number(form.includedShootingDays) || 0,
+        renewalDate: form.renewalDate || undefined,
+        notes: form.notes.trim() || undefined,
+      })
+      toastSuccess('Package created.')
+      setShowCreate(false)
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      console.error('[PackagesPage] create failed', err)
+      const msg = err instanceof Error ? err.message : 'Could not create the package.'
+      setCreateError(msg)
+      toastError(msg)
+    } finally {
+      setCreating(false)
+    }
+  }
 
   const clientColorById = useMemo(() => {
     const map = new Map<string, string>()
@@ -184,9 +337,11 @@ export default function PackagesPage() {
           <h1 className="text-2xl font-black text-white">Packages</h1>
           <p className="text-slate-400 text-sm mt-1">Client subscription tracking & usage management</p>
         </div>
-        <button className="btn-primary text-sm">
-          <Plus className="w-4 h-4" /> New Package
-        </button>
+        {canManage && (
+          <button className="btn-primary text-sm" onClick={openCreate}>
+            <Plus className="w-4 h-4" /> New Package
+          </button>
+        )}
       </div>
 
       {/* Loading */}
@@ -242,22 +397,37 @@ export default function PackagesPage() {
             ))}
 
             {/* Add package CTA */}
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              className="rounded-2xl flex flex-col items-center justify-center gap-3 py-12 cursor-pointer transition-all"
-              style={{ border: '2px dashed rgba(59,130,246,0.2)', background: 'rgba(59,130,246,0.02)' }}>
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
-                style={{ background: 'rgba(59,130,246,0.1)' }}>
-                <Plus className="w-6 h-6 text-blue-400" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-semibold text-slate-400">Add Package</p>
-                <p className="text-xs text-slate-600 mt-0.5">Create a new client package</p>
-              </div>
-            </motion.div>
+            {canManage && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                onClick={openCreate}
+                className="rounded-2xl flex flex-col items-center justify-center gap-3 py-12 cursor-pointer transition-all"
+                style={{ border: '2px dashed rgba(59,130,246,0.2)', background: 'rgba(59,130,246,0.02)' }}>
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                  style={{ background: 'rgba(59,130,246,0.1)' }}>
+                  <Plus className="w-6 h-6 text-blue-400" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-slate-400">Add Package</p>
+                  <p className="text-xs text-slate-600 mt-0.5">Create a new client package</p>
+                </div>
+              </motion.button>
+            )}
           </div>
         </>
       )}
+
+      <AnimatePresence>
+        {showCreate && (
+          <NewPackageModal
+            clients={clients}
+            saving={creating}
+            error={createError}
+            onSubmit={createPackage}
+            onClose={() => setShowCreate(false)}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

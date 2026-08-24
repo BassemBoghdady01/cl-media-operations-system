@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Plus, Clock } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ChevronLeft, ChevronRight, Plus, Clock, X } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { calendarService, type CalendarItem } from '../../services/calendarService'
 import { videoService } from '../../services/videoService'
-import { statusColors, getInitials } from '../../lib/utils'
-import type { Video } from '../../types'
+import { clientService } from '../../services/clientService'
+import { toastSuccess, toastError } from '../../lib/toast'
+import { statusColors, getInitials, formatDate, formatDateShort } from '../../lib/utils'
+import type { Client, Video } from '../../types'
 
 type CalView = 'month' | 'week'
 
@@ -37,38 +39,177 @@ function getFirstDayOfMonth(year: number, month: number) {
   return new Date(year, month, 1).getDay()
 }
 
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function startOfWeek(d: Date) {
+  const x = new Date(d)
+  x.setHours(0, 0, 0, 0)
+  x.setDate(x.getDate() - x.getDay())
+  return x
+}
+
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December']
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+interface ScheduleForm {
+  clientId: string
+  title: string
+  platform: string
+  scheduledAt: string // datetime-local value
+  caption: string
+  status: 'draft' | 'scheduled'
+}
+
+function SchedulePostModal({
+  clients, initialDate, saving, error, onSubmit, onClose,
+}: {
+  clients: Client[]
+  initialDate: string | null
+  saving: boolean
+  error: string | null
+  onSubmit: (form: ScheduleForm) => void
+  onClose: () => void
+}) {
+  const [form, setForm] = useState<ScheduleForm>({
+    clientId: '', title: '', platform: 'instagram',
+    scheduledAt: initialDate ? `${initialDate}T12:00` : '',
+    caption: '', status: 'scheduled',
+  })
+  const set = (patch: Partial<ScheduleForm>) => setForm((f) => ({ ...f, ...patch }))
+  const valid = form.clientId && form.title.trim() && form.platform && form.scheduledAt
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+      onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-base font-black text-white">Schedule Post</h2>
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Client</label>
+            <select className="input py-2 text-xs mt-1" value={form.clientId}
+              onChange={(e) => set({ clientId: e.target.value })}>
+              <option value="">Select a client…</option>
+              {clients.map((c) => <option key={c.id} value={c.id}>{c.brandName || c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Title</label>
+            <input className="input py-2 text-xs mt-1" placeholder="What's being posted?"
+              value={form.title} onChange={(e) => set({ title: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Platform</label>
+              <select className="input py-2 text-xs mt-1 capitalize" value={form.platform}
+                onChange={(e) => set({ platform: e.target.value })}>
+                {Object.keys(PLATFORMS).map((p) => (
+                  <option key={p} value={p} className="capitalize">{p}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Status</label>
+              <select className="input py-2 text-xs mt-1" value={form.status}
+                onChange={(e) => set({ status: e.target.value as 'draft' | 'scheduled' })}>
+                <option value="scheduled">Scheduled</option>
+                <option value="draft">Draft</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Date & Time</label>
+            <input type="datetime-local" className="input py-2 text-xs mt-1" value={form.scheduledAt}
+              onChange={(e) => set({ scheduledAt: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Caption (optional)</label>
+            <textarea className="input py-2 text-xs mt-1 min-h-[64px]" placeholder="Post caption…"
+              value={form.caption} onChange={(e) => set({ caption: e.target.value })} />
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-400 rounded-xl px-3 py-2"
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              {error}
+            </p>
+          )}
+
+          <button
+            className="btn-primary w-full justify-center text-xs py-2.5 disabled:opacity-50"
+            disabled={!valid || saving}
+            onClick={() => onSubmit(form)}>
+            {saving ? 'Scheduling…' : 'Schedule Post'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function ContentCalendar() {
-  const { user, agency } = useAuth()
+  const { user, agency, hasPermission } = useAuth()
   const agencyId = user?.agencyId || agency?.id || ''
+  const canManage = hasPermission('calendar.manage')
 
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
   const [view, setView] = useState<CalView>('month')
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()))
   const [selectedClient, setSelectedClient] = useState('All')
   const [selectedPlatform, setSelectedPlatform] = useState('All')
-  const [selectedDay, setSelectedDay] = useState<number | null>(null)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
   const [calendarItems, setCalendarItems] = useState<CalendarItem[]>([])
   const [videos, setVideos] = useState<Video[]>([])
+  const [clientRows, setClientRows] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
 
+  const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+
   useEffect(() => {
-    if (!agencyId) return
+    if (!agencyId) {
+      setLoading(false)
+      return
+    }
     let cancelled = false
     setLoading(true)
     setError(null)
-    Promise.all([calendarService.getAll(agencyId), videoService.getAll(agencyId)])
-      .then(([items, vids]) => {
+    Promise.all([
+      calendarService.getAll(agencyId),
+      videoService.getAll(agencyId),
+      clientService.getAll(agencyId),
+    ])
+      .then(([items, vids, cls]) => {
         if (cancelled) return
         setCalendarItems(items)
         setVideos(vids)
+        setClientRows(cls)
         setLoading(false)
       })
       .catch((err) => {
@@ -81,6 +222,31 @@ export default function ContentCalendar() {
   }, [agencyId, reload])
 
   const retry = () => setReload((n) => n + 1)
+
+  const createPost = async (form: ScheduleForm) => {
+    setCreating(true)
+    setCreateError(null)
+    try {
+      await calendarService.create(agencyId, {
+        clientId: form.clientId,
+        title: form.title.trim(),
+        platform: form.platform,
+        scheduledAt: new Date(form.scheduledAt).toISOString(),
+        caption: form.caption.trim() || undefined,
+        status: form.status,
+      })
+      toastSuccess(form.status === 'scheduled' ? 'Post scheduled.' : 'Draft post added to the calendar.')
+      setShowCreate(false)
+      setReload((n) => n + 1)
+    } catch (err) {
+      console.error('[ContentCalendar] create failed', err)
+      const msg = err instanceof Error ? err.message : 'Could not schedule the post.'
+      setCreateError(msg)
+      toastError(msg)
+    } finally {
+      setCreating(false)
+    }
+  }
 
   // Merge: content_calendar rows are the primary source; scheduled videos that
   // are not already linked to a calendar entry (via videoId) are added on top.
@@ -113,7 +279,7 @@ export default function ContentCalendar() {
     return [...fromCalendar, ...fromVideos]
   }, [calendarItems, videos])
 
-  const clients = useMemo(
+  const clientNames = useMemo(
     () => ['All', ...new Set(entries.map((e) => e.clientName))],
     [entries]
   )
@@ -124,16 +290,31 @@ export default function ContentCalendar() {
   const nextMonth = () => {
     if (month === 11) { setMonth(0); setYear((y) => y + 1) } else setMonth((m) => m + 1)
   }
+  const shiftWeek = (days: number) => {
+    setWeekStart((d) => {
+      const x = new Date(d)
+      x.setDate(x.getDate() + days)
+      return x
+    })
+  }
+  const goPrev = () => {
+    setSelectedDate(null)
+    if (view === 'month') prevMonth()
+    else shiftWeek(-7)
+  }
+  const goNext = () => {
+    setSelectedDate(null)
+    if (view === 'month') nextMonth()
+    else shiftWeek(7)
+  }
 
-  const getEntriesForDay = (day: number) => {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-    return entries.filter((e) => {
+  const getEntriesForDate = (dateStr: string) =>
+    entries.filter((e) => {
       const match = e.date === dateStr
       const matchClient = selectedClient === 'All' || e.clientName === selectedClient
       const matchPlatform = selectedPlatform === 'All' || e.platform === selectedPlatform
       return match && matchClient && matchPlatform
     })
-  }
 
   const daysInMonth = getDaysInMonth(year, month)
   const firstDay = getFirstDayOfMonth(year, month)
@@ -142,14 +323,63 @@ export default function ContentCalendar() {
   )
   while (cells.length % 7 !== 0) cells.push(null)
 
-  const selectedEntries = selectedDay ? getEntriesForDay(selectedDay) : []
+  const monthDateStr = (day: number) =>
+    `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(weekStart)
+      d.setDate(d.getDate() + i)
+      return d
+    }),
+    [weekStart]
+  )
+
+  const headerTitle = view === 'month'
+    ? `${MONTH_NAMES[month]} ${year}`
+    : `${formatDateShort(toDateStr(weekDays[0]))} – ${formatDateShort(toDateStr(weekDays[6]))}, ${weekDays[6].getFullYear()}`
+
+  const selectedEntries = selectedDate ? getEntriesForDate(selectedDate) : []
 
   // Upcoming posts for sidebar
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const todayStr = toDateStr(today)
   const upcoming = entries
     .filter((e) => e.date >= todayStr)
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 6)
+
+  const renderDayCell = (dateStr: string, dayNum: number, key: string | number, minH: string, maxPills: number) => {
+    const dayEntries = getEntriesForDate(dateStr)
+    const isToday = dateStr === todayStr
+    const isSelected = selectedDate === dateStr
+    return (
+      <motion.button
+        key={key}
+        whileHover={{ scale: 1.05 }}
+        onClick={() => setSelectedDate(isSelected ? null : dateStr)}
+        className={`${minH} rounded-xl p-1.5 text-left transition-all relative overflow-hidden`}
+        style={{
+          background: isSelected ? 'rgba(59,130,246,0.2)' : isToday ? 'rgba(59,130,246,0.08)' : dayEntries.length > 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+          border: isSelected ? '1px solid rgba(59,130,246,0.5)' : isToday ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
+        }}>
+        <div className={`text-[11px] font-bold mb-1 ${isToday ? 'text-blue-400' : isSelected ? 'text-white' : 'text-slate-400'}`}>
+          {dayNum}
+        </div>
+        <div className="flex flex-wrap gap-0.5">
+          {dayEntries.slice(0, maxPills).map((e) => (
+            <div key={e.id}
+              className="w-full px-1 py-0.5 rounded text-[9px] font-medium truncate"
+              style={{ background: `${PLATFORMS[e.platform]?.color ?? '#64748B'}20`, color: PLATFORMS[e.platform]?.color ?? '#94A3B8' }}>
+              {PLATFORMS[e.platform]?.short ?? e.platform.slice(0, 2).toUpperCase()} · {e.title.slice(0, 10)}…
+            </div>
+          ))}
+          {dayEntries.length > maxPills && (
+            <span className="text-[9px] text-slate-600">+{dayEntries.length - maxPills} more</span>
+          )}
+        </div>
+      </motion.button>
+    )
+  }
 
   return (
     <motion.div
@@ -168,16 +398,22 @@ export default function ContentCalendar() {
         <div className="flex gap-3">
           <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
             {(['month', 'week'] as const).map((v) => (
-              <button key={v} onClick={() => setView(v)}
+              <button key={v}
+                onClick={() => {
+                  setView(v)
+                  if (v === 'week') setWeekStart(startOfWeek(new Date()))
+                }}
                 className="px-4 py-2 text-xs font-medium transition-all capitalize"
                 style={{ background: view === v ? 'rgba(59,130,246,0.2)' : 'transparent', color: view === v ? '#60A5FA' : '#64748B' }}>
                 {v}
               </button>
             ))}
           </div>
-          <button className="btn-primary text-sm">
-            <Plus className="w-4 h-4" /> Schedule Post
-          </button>
+          {canManage && (
+            <button className="btn-primary text-sm" onClick={() => { setCreateError(null); setShowCreate(true) }}>
+              <Plus className="w-4 h-4" /> Schedule Post
+            </button>
+          )}
         </div>
       </div>
 
@@ -192,7 +428,7 @@ export default function ContentCalendar() {
           {/* Filters */}
           <div className="flex flex-wrap gap-3 mb-5">
             <select className="input py-2 text-xs w-auto" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
-              {clients.map((c) => <option key={c}>{c}</option>)}
+              {clientNames.map((c) => <option key={c}>{c}</option>)}
             </select>
             <select className="input py-2 text-xs w-auto" value={selectedPlatform} onChange={(e) => setSelectedPlatform(e.target.value)}>
               {['All', 'instagram', 'tiktok', 'youtube', 'facebook', 'linkedin'].map((p) => <option key={p}>{p}</option>)}
@@ -211,13 +447,13 @@ export default function ContentCalendar() {
             {/* Calendar */}
             <div className="lg:col-span-3">
               <div className="glass-blue rounded-2xl p-5">
-                {/* Month nav */}
+                {/* Period nav */}
                 <div className="flex items-center justify-between mb-5">
-                  <button onClick={prevMonth} className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.07] transition-all">
+                  <button onClick={goPrev} className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.07] transition-all">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <h2 className="text-base font-bold text-white">{MONTH_NAMES[month]} {year}</h2>
-                  <button onClick={nextMonth} className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.07] transition-all">
+                  <h2 className="text-base font-bold text-white">{headerTitle}</h2>
+                  <button onClick={goNext} className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.07] transition-all">
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -230,51 +466,28 @@ export default function ContentCalendar() {
                 </div>
 
                 {/* Calendar grid */}
-                <div className="grid grid-cols-7 gap-1">
-                  {cells.map((day, i) => {
-                    if (!day) return <div key={i} className="aspect-square" />
-                    const dayEntries = getEntriesForDay(day)
-                    const isToday = year === today.getFullYear() && month === today.getMonth() && day === today.getDate()
-                    const isSelected = selectedDay === day
-                    return (
-                      <motion.button
-                        key={i}
-                        whileHover={{ scale: 1.05 }}
-                        onClick={() => setSelectedDay(day === selectedDay ? null : day)}
-                        className="min-h-[64px] rounded-xl p-1.5 text-left transition-all relative overflow-hidden"
-                        style={{
-                          background: isSelected ? 'rgba(59,130,246,0.2)' : isToday ? 'rgba(59,130,246,0.08)' : dayEntries.length > 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
-                          border: isSelected ? '1px solid rgba(59,130,246,0.5)' : isToday ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
-                        }}>
-                        <div className={`text-[11px] font-bold mb-1 ${isToday ? 'text-blue-400' : isSelected ? 'text-white' : 'text-slate-400'}`}>
-                          {day}
-                        </div>
-                        <div className="flex flex-wrap gap-0.5">
-                          {dayEntries.slice(0, 3).map((e) => (
-                            <div key={e.id}
-                              className="w-full px-1 py-0.5 rounded text-[9px] font-medium truncate"
-                              style={{ background: `${PLATFORMS[e.platform]?.color ?? '#64748B'}20`, color: PLATFORMS[e.platform]?.color ?? '#94A3B8' }}>
-                              {PLATFORMS[e.platform]?.short ?? e.platform.slice(0, 2).toUpperCase()} · {e.title.slice(0, 10)}…
-                            </div>
-                          ))}
-                          {dayEntries.length > 3 && (
-                            <span className="text-[9px] text-slate-600">+{dayEntries.length - 3} more</span>
-                          )}
-                        </div>
-                      </motion.button>
-                    )
-                  })}
-                </div>
+                {view === 'month' ? (
+                  <div className="grid grid-cols-7 gap-1">
+                    {cells.map((day, i) => {
+                      if (!day) return <div key={i} className="aspect-square" />
+                      return renderDayCell(monthDateStr(day), day, i, 'min-h-[64px]', 3)
+                    })}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-7 gap-1">
+                    {weekDays.map((d) => renderDayCell(toDateStr(d), d.getDate(), toDateStr(d), 'min-h-[160px]', 6))}
+                  </div>
+                )}
               </div>
 
               {/* Selected day detail */}
-              {selectedDay && selectedEntries.length > 0 && (
+              {selectedDate && selectedEntries.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="mt-4 glass-blue rounded-2xl p-5">
                   <h3 className="text-sm font-bold text-white mb-4">
-                    {MONTH_NAMES[month]} {selectedDay} — {selectedEntries.length} post{selectedEntries.length > 1 ? 's' : ''}
+                    {formatDate(selectedDate)} — {selectedEntries.length} post{selectedEntries.length > 1 ? 's' : ''}
                   </h3>
                   <div className="space-y-3">
                     {selectedEntries.map((e) => {
@@ -363,6 +576,19 @@ export default function ContentCalendar() {
           </div>
         </>
       )}
+
+      <AnimatePresence>
+        {showCreate && (
+          <SchedulePostModal
+            clients={clientRows}
+            initialDate={selectedDate}
+            saving={creating}
+            error={createError}
+            onSubmit={createPost}
+            onClose={() => setShowCreate(false)}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

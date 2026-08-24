@@ -50,6 +50,19 @@ export default function ClientVideos() {
     posted: videos.filter((v) => v.status === 'posted').length,
   }
 
+  if (loadError) {
+    return (
+      <PageErrorState
+        message={loadError}
+        onRetry={() => {
+          setLoadError(null)
+          setLoading(true)
+          window.location.reload()
+        }}
+      />
+    )
+  }
+
   return (
     <div className="px-5 py-6 max-w-5xl mx-auto">
       <div className="mb-6">

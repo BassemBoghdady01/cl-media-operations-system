@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  CheckSquare, Plus, Search, Clock, AlertTriangle, Check,
+  CheckSquare, Plus, Search, Clock, AlertTriangle, Check, X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { taskService } from '../../services/taskService'
+import { clientService } from '../../services/clientService'
+import { userService, type ManagedUser } from '../../services/userService'
+import { toastSuccess, toastError } from '../../lib/toast'
+import { normalizeRole, ROLES } from '../../config/roles'
 import { statusColors, priorityColors, getInitials } from '../../lib/utils'
-import type { Task } from '../../types'
+import type { Task, Client } from '../../types'
 
 const STATUSES = ['todo', 'in_progress', 'waiting', 'done', 'blocked'] as const
 const STATUS_LABELS: Record<string, string> = {
@@ -28,7 +32,7 @@ function TaskCard({ task, i, onToggle }: { task: Task; i: number; onToggle: (tas
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: i * 0.04 }}
       whileHover={{ y: -1 }}
-      className="p-4 rounded-xl cursor-pointer"
+      className="p-4 rounded-xl"
       style={{ background: 'rgba(13,22,47,0.8)', border: '1px solid rgba(255,255,255,0.07)' }}>
 
       <div className="flex items-start gap-2.5 mb-2.5">
@@ -81,9 +85,127 @@ function TaskCard({ task, i, onToggle }: { task: Task; i: number; onToggle: (tas
   )
 }
 
+// ─── New Task modal ───────────────────────────────────────────────────────────
+
+interface NewTaskForm {
+  title: string
+  description: string
+  assignedTo: string
+  clientId: string
+  priority: Task['priority']
+  dueDate: string
+}
+
+const EMPTY_TASK_FORM: NewTaskForm = {
+  title: '', description: '', assignedTo: '', clientId: '', priority: 'medium', dueDate: '',
+}
+
+function AddTaskModal({
+  members, clients, saving, error, onSubmit, onClose,
+}: {
+  members: ManagedUser[]
+  clients: Client[]
+  saving: boolean
+  error: string | null
+  onSubmit: (form: NewTaskForm) => void
+  onClose: () => void
+}) {
+  const [form, setForm] = useState<NewTaskForm>(EMPTY_TASK_FORM)
+  const set = (patch: Partial<NewTaskForm>) => setForm((f) => ({ ...f, ...patch }))
+  const valid = form.title.trim().length > 0
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+      onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass-blue rounded-3xl p-6 w-full max-w-md">
+
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-base font-black text-white">New Task</h2>
+          <button onClick={onClose} aria-label="Close"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Title</label>
+            <input className="input py-2 text-xs mt-1" placeholder="What needs to be done?"
+              value={form.title} onChange={(e) => set({ title: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Description (optional)</label>
+            <textarea className="input py-2 text-xs mt-1 min-h-[64px]" placeholder="Add details…"
+              value={form.description} onChange={(e) => set({ description: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Assignee (optional)</label>
+              <select className="input py-2 text-xs mt-1" value={form.assignedTo}
+                onChange={(e) => set({ assignedTo: e.target.value })}>
+                <option value="">Unassigned</option>
+                {members.map((m) => <option key={m.id} value={m.id}>{m.full_name || m.email}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Client (optional)</label>
+              <select className="input py-2 text-xs mt-1" value={form.clientId}
+                onChange={(e) => set({ clientId: e.target.value })}>
+                <option value="">No client</option>
+                {clients.map((c) => <option key={c.id} value={c.id}>{c.brandName || c.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Priority</label>
+              <select className="input py-2 text-xs mt-1" value={form.priority}
+                onChange={(e) => set({ priority: e.target.value as Task['priority'] })}>
+                {(['low', 'medium', 'high', 'urgent'] as const).map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Due Date</label>
+              <input type="date" className="input py-2 text-xs mt-1" value={form.dueDate}
+                onChange={(e) => set({ dueDate: e.target.value })} />
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-400 rounded-xl px-3 py-2"
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              {error}
+            </p>
+          )}
+
+          <button
+            className="btn-primary w-full justify-center text-xs py-2.5 disabled:opacity-50"
+            disabled={!valid || saving}
+            onClick={() => onSubmit(form)}>
+            {saving ? 'Creating…' : 'Create Task'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function TasksPage() {
-  const { user, agency } = useAuth()
+  const { user, agency, hasPermission } = useAuth()
   const agencyId = user?.agencyId || agency?.id || ''
+  const canManage = hasPermission('tasks.manage')
 
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
@@ -94,6 +216,14 @@ export default function TasksPage() {
   const [search, setSearch] = useState('')
   const [filterPriority, setFilterPriority] = useState('All')
   const [filterAssignee, setFilterAssignee] = useState('All')
+
+  // New-task modal state. Members/clients for the pickers load on first open.
+  const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [pickersLoaded, setPickersLoaded] = useState(false)
+  const [members, setMembers] = useState<ManagedUser[]>([])
+  const [clients, setClients] = useState<Client[]>([])
 
   useEffect(() => {
     if (!agencyId) {
@@ -132,6 +262,53 @@ export default function TasksPage() {
     } catch (err) {
       console.error('[TasksPage] status update failed', err)
       setTasks(previous)
+      toastError(err instanceof Error ? err.message : 'Could not update the task status.')
+    }
+  }
+
+  // Open the new-task modal; lazily fetch assignee/client pickers once.
+  const openCreate = async () => {
+    setCreateError(null)
+    setShowCreate(true)
+    if (pickersLoaded || !agencyId) return
+    try {
+      const [userRows, clientRows] = await Promise.all([
+        userService.listUsers(agencyId),
+        clientService.getAll(agencyId),
+      ])
+      setMembers(userRows.filter((u) => normalizeRole(u.role) !== ROLES.CLIENT && u.status !== 'inactive'))
+      setClients(clientRows)
+      setPickersLoaded(true)
+    } catch (err) {
+      console.error('[TasksPage] picker load failed', err)
+      toastError('Could not load team members and clients for the form.')
+    }
+  }
+
+  const createTask = async (form: NewTaskForm) => {
+    if (creating) return
+    setCreating(true)
+    setCreateError(null)
+    try {
+      await taskService.create(agencyId, {
+        title: form.title.trim(),
+        description: form.description.trim() || undefined,
+        assignedTo: form.assignedTo || undefined,
+        clientId: form.clientId || undefined,
+        priority: form.priority,
+        dueDate: form.dueDate || undefined,
+        status: 'todo',
+      })
+      toastSuccess('Task created.')
+      setShowCreate(false)
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      console.error('[TasksPage] create failed', err)
+      const msg = err instanceof Error ? err.message : 'Could not create the task.'
+      setCreateError(msg)
+      toastError(msg)
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -183,9 +360,11 @@ export default function TasksPage() {
               </button>
             ))}
           </div>
-          <button className="btn-primary text-sm">
-            <Plus className="w-4 h-4" /> Add Task
-          </button>
+          {canManage && (
+            <button className="btn-primary text-sm" onClick={() => void openCreate()}>
+              <Plus className="w-4 h-4" /> Add Task
+            </button>
+          )}
         </div>
       </div>
 
@@ -334,6 +513,20 @@ export default function TasksPage() {
           )}
         </div>
       )}
+
+      {/* New task modal */}
+      <AnimatePresence>
+        {showCreate && (
+          <AddTaskModal
+            members={members}
+            clients={clients}
+            saving={creating}
+            error={createError}
+            onSubmit={createTask}
+            onClose={() => setShowCreate(false)}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

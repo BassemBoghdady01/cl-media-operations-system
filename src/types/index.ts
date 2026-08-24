@@ -56,6 +56,7 @@ export interface Client {
   socialLinks?: { instagram?: string; tiktok?: string; youtube?: string; facebook?: string; linkedin?: string }
   accountManagerId?: string
   portalAccess: boolean
+  notes?: string
   createdAt: string
   totalVideos?: number
   completedVideos?: number

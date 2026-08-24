@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Search, Plus, Users, Film, Package as PackageIcon, TrendingUp } from 'lucide-react'
+import { Search, Plus, Users, Film, Package as PackageIcon, TrendingUp, X } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { clientService } from '../../services/clientService'
 import { packageService } from '../../services/packageService'
 import { videoService } from '../../services/videoService'
 import { statusColors, getInitials, formatCurrency } from '../../lib/utils'
+import { toastSuccess, toastError } from '../../lib/toast'
 import type { Client, Package, Video } from '../../types'
 
 const statuses = ['All', 'active', 'paused', 'inactive']
+const CLIENT_COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4', '#F97316']
 
 export default function ClientsPage() {
-  const { user, agency } = useAuth()
+  const { user, agency, hasPermission } = useAuth()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const agencyId = user?.agencyId || agency?.id || ''
 
   const [clients, setClients] = useState<Client[]>([])
@@ -23,9 +27,16 @@ export default function ClientsPage() {
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(searchParams.get('q') ?? '')
   const [industry, setIndustry] = useState('All')
   const [status, setStatus] = useState('All')
+  const [showCreate, setShowCreate] = useState(false)
+
+  // Navbar global search lands here as ?q=…
+  useEffect(() => {
+    const q = searchParams.get('q')
+    if (q !== null) setSearch(q)
+  }, [searchParams])
 
   useEffect(() => {
     if (!agencyId) {
@@ -111,9 +122,11 @@ export default function ClientsPage() {
           <h1 className="text-2xl font-black text-white">Clients</h1>
           <p className="text-slate-400 text-sm mt-1">{activeCount} active · {clients.length} total</p>
         </div>
-        <button className="btn-primary text-sm">
-          <Plus className="w-4 h-4" /> Add Client
-        </button>
+        {hasPermission('clients.create') && (
+          <button className="btn-primary text-sm" onClick={() => setShowCreate(true)}>
+            <Plus className="w-4 h-4" /> Add Client
+          </button>
+        )}
       </div>
 
       {/* Quick stats */}
@@ -187,8 +200,12 @@ export default function ClientsPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.06 }}
                 whileHover={{ y: -2 }}
+                onClick={() => navigate(`/app/clients/${client.id}`)}
+                onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/app/clients/${client.id}`) }}
+                role="link"
+                tabIndex={0}
                 className="glass glass-hover rounded-2xl p-5 cursor-pointer group">
-                <Link to={`/app/clients/${client.id}`} className="block">
+                <div className="block">
                   {/* Header */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -257,7 +274,7 @@ export default function ClientsPage() {
                       View profile →
                     </span>
                   </div>
-                </Link>
+                </div>
               </motion.div>
             )
           })}
@@ -270,6 +287,169 @@ export default function ClientsPage() {
           <p className="text-slate-500">No clients match your filters.</p>
         </div>
       )}
+
+      {showCreate && (
+        <ClientFormModal
+          agencyId={agencyId}
+          onClose={() => setShowCreate(false)}
+          onSaved={(id) => {
+            setShowCreate(false)
+            setReloadKey((k) => k + 1)
+            navigate(`/app/clients/${id}`)
+          }}
+        />
+      )}
     </motion.div>
+  )
+}
+
+/** Create/edit client form. Exported so ClientProfile reuses it for editing. */
+export function ClientFormModal({
+  agencyId,
+  existing,
+  onClose,
+  onSaved,
+}: {
+  agencyId: string
+  existing?: Client
+  onClose: () => void
+  onSaved: (clientId: string) => void
+}) {
+  const [form, setForm] = useState({
+    name: existing?.name ?? '',
+    brandName: existing?.brandName ?? '',
+    industry: existing?.industry ?? '',
+    contactName: existing?.contactName ?? '',
+    email: existing?.email ?? '',
+    phone: existing?.phone ?? '',
+    color: existing?.color ?? CLIENT_COLORS[0],
+    status: existing?.status ?? ('active' as Client['status']),
+    portalAccess: existing?.portalAccess ?? false,
+  })
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+
+  const set = (k: keyof typeof form, v: unknown) => setForm((f) => ({ ...f, [k]: v }))
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name.trim()) { setFormError('Company name is required.'); return }
+    setSaving(true)
+    setFormError(null)
+    try {
+      const payload = {
+        ...form,
+        name: form.name.trim(),
+        brandName: form.brandName.trim() || form.name.trim(),
+      }
+      if (existing) {
+        await clientService.update(existing.id, payload)
+        toastSuccess('Client updated.')
+        onSaved(existing.id)
+      } else {
+        const created = await clientService.create(agencyId, payload)
+        toastSuccess(`${created.brandName} added.`)
+        onSaved(created.id)
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not save the client.'
+      setFormError(msg)
+      toastError(msg)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+      style={{ background: 'rgba(0,0,0,0.65)' }} onClick={onClose}>
+      <div className="glass-blue rounded-2xl p-6 w-full max-w-lg my-8" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-sm font-bold text-white">{existing ? 'Edit client' : 'Add client'}</h3>
+          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2 sm:col-span-1">
+              <label className="text-[11px] text-slate-400 block mb-1">Company name *</label>
+              <input className="input text-xs py-2" value={form.name}
+                onChange={(e) => set('name', e.target.value)} placeholder="e.g. Horizon Foods" />
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="text-[11px] text-slate-400 block mb-1">Brand name</label>
+              <input className="input text-xs py-2" value={form.brandName}
+                onChange={(e) => set('brandName', e.target.value)} placeholder="Shown on cards" />
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="text-[11px] text-slate-400 block mb-1">Industry</label>
+              <input className="input text-xs py-2" value={form.industry}
+                onChange={(e) => set('industry', e.target.value)} placeholder="e.g. Food & Beverage" />
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="text-[11px] text-slate-400 block mb-1">Contact person</label>
+              <input className="input text-xs py-2" value={form.contactName}
+                onChange={(e) => set('contactName', e.target.value)} />
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="text-[11px] text-slate-400 block mb-1">Email</label>
+              <input className="input text-xs py-2" type="email" value={form.email}
+                onChange={(e) => set('email', e.target.value)} />
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="text-[11px] text-slate-400 block mb-1">Phone</label>
+              <input className="input text-xs py-2" value={form.phone}
+                onChange={(e) => set('phone', e.target.value)} />
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="text-[11px] text-slate-400 block mb-1">Status</label>
+              <select className="input text-xs py-2" value={form.status}
+                onChange={(e) => set('status', e.target.value)}>
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="text-[11px] text-slate-400 block mb-1">Colour</label>
+              <div className="flex gap-1.5 flex-wrap pt-1">
+                {CLIENT_COLORS.map((c) => (
+                  <button key={c} type="button" onClick={() => set('color', c)}
+                    className="w-6 h-6 rounded-lg transition-transform"
+                    style={{
+                      background: c,
+                      transform: form.color === c ? 'scale(1.2)' : undefined,
+                      outline: form.color === c ? '2px solid white' : 'none',
+                      outlineOffset: 1,
+                    }} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 pt-1 cursor-pointer">
+            <input type="checkbox" checked={form.portalAccess}
+              onChange={(e) => set('portalAccess', e.target.checked)} />
+            <span className="text-xs text-slate-300">Enable client portal access</span>
+          </label>
+
+          {formError && (
+            <div className="rounded-xl p-2.5 text-[11px] text-red-400"
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+              {formError}
+            </div>
+          )}
+
+          <div className="flex gap-2 justify-end pt-2">
+            <button type="button" className="btn-secondary text-xs py-2 px-4" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary text-xs py-2 px-4" disabled={saving}>
+              {saving ? 'Saving…' : existing ? 'Save changes' : 'Add client'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   )
 }

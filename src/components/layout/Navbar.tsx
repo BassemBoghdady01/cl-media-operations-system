@@ -54,6 +54,7 @@ export default function Navbar() {
   const { user, hasPermission } = useAuth()
   const [showNotifs, setShowNotifs] = useState(false)
   const [searchFocused, setSearchFocused] = useState(false)
+  const [searchText, setSearchText] = useState('')
   const { items, unread, markRead } = useNotifications(8)
 
   // Longest-prefix match so /app/finance/payroll beats /app/finance.
@@ -72,12 +73,20 @@ export default function Navbar() {
         <p className="text-[11px] text-slate-500 leading-tight truncate hidden sm:block">{subtitle}</p>
       </div>
 
-      {/* Search */}
+      {/* Global search — Enter jumps to the clients list filtered by the query */}
       <div className={`relative hidden md:flex items-center transition-all duration-300 ${searchFocused ? 'w-72' : 'w-52'}`}>
         <Search className="absolute left-3 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
         <input
           className="input pl-9 pr-4 py-2 text-xs h-9"
-          placeholder="Search clients, videos, tasks…"
+          placeholder="Search clients… (Enter)"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && searchText.trim()) {
+              navigate(`/app/clients?q=${encodeURIComponent(searchText.trim())}`)
+              setSearchText('')
+            }
+          }}
           onFocus={() => setSearchFocused(true)}
           onBlur={() => setSearchFocused(false)}
         />

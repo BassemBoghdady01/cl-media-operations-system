@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Plus, Film, CheckSquare, TrendingUp, Zap, Users,
+  Plus, Film, CheckSquare, TrendingUp, Zap, Users, X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { userService, type ManagedUser } from '../../services/userService'
 import { taskService } from '../../services/taskService'
 import { videoService } from '../../services/videoService'
+import { toastSuccess, toastError } from '../../lib/toast'
 import { getInitials } from '../../lib/utils'
 import { ROLE_LABELS, ROLES, normalizeRole } from '../../config/roles'
 import type { Task, Video } from '../../types'
@@ -49,7 +51,12 @@ function currentWeekRange(): [number, number] {
   return [start.getTime(), start.getTime() + 7 * 24 * 60 * 60 * 1000]
 }
 
-function MemberCard({ member, i }: { member: MemberStats; i: number }) {
+function MemberCard({ member, i, onAssign }: {
+  member: MemberStats
+  i: number
+  /** When absent (no tasks.manage permission) the Assign Task action is hidden. */
+  onAssign?: (member: MemberStats) => void
+}) {
   const avail = availabilityConfig[member.availability]
   const workloadPct = Math.min(100, Math.round((member.activeTasks / FULL_WORKLOAD_TASKS) * 100))
   const workloadColor = workloadPct >= 80 ? '#EF4444' : workloadPct >= 60 ? '#F59E0B' : '#10B981'
@@ -129,17 +136,132 @@ function MemberCard({ member, i }: { member: MemberStats; i: number }) {
       <div className="flex items-center justify-between pt-3"
         style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
         <span className="text-[10px] text-slate-600 truncate max-w-[130px]">{member.email}</span>
-        <button className="text-[11px] text-blue-400 hover:text-blue-300 transition-colors font-medium">
-          Assign Task →
-        </button>
+        {onAssign && (
+          <button
+            onClick={() => onAssign(member)}
+            className="text-[11px] text-blue-400 hover:text-blue-300 transition-colors font-medium">
+            Assign Task →
+          </button>
+        )}
       </div>
     </motion.div>
   )
 }
 
+// ─── Assign Task modal ────────────────────────────────────────────────────────
+
+interface AssignTaskForm {
+  title: string
+  description: string
+  priority: Task['priority']
+  dueDate: string
+}
+
+const EMPTY_ASSIGN_FORM: AssignTaskForm = {
+  title: '', description: '', priority: 'medium', dueDate: '',
+}
+
+function AssignTaskModal({
+  member, saving, error, onSubmit, onClose,
+}: {
+  member: MemberStats
+  saving: boolean
+  error: string | null
+  onSubmit: (form: AssignTaskForm) => void
+  onClose: () => void
+}) {
+  const [form, setForm] = useState<AssignTaskForm>(EMPTY_ASSIGN_FORM)
+  const set = (patch: Partial<AssignTaskForm>) => setForm((f) => ({ ...f, ...patch }))
+  const valid = form.title.trim().length > 0
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+      onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass-blue rounded-3xl p-6 w-full max-w-md">
+
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-base font-black text-white">Assign Task</h2>
+          <button onClick={onClose} aria-label="Close"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Fixed assignee */}
+        <div className="flex items-center gap-2.5 mb-4 p-3 rounded-xl"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
+            style={{ background: member.color }}>
+            {getInitials(member.name)}
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-white">{member.name}</p>
+            <p className="text-[10px] text-slate-500">{member.roleLabel}</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Title</label>
+            <input className="input py-2 text-xs mt-1" placeholder="What needs to be done?"
+              value={form.title} onChange={(e) => set({ title: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Description (optional)</label>
+            <textarea className="input py-2 text-xs mt-1 min-h-[64px]" placeholder="Add details…"
+              value={form.description} onChange={(e) => set({ description: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Priority</label>
+              <select className="input py-2 text-xs mt-1" value={form.priority}
+                onChange={(e) => set({ priority: e.target.value as Task['priority'] })}>
+                {(['low', 'medium', 'high', 'urgent'] as const).map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Due Date</label>
+              <input type="date" className="input py-2 text-xs mt-1" value={form.dueDate}
+                onChange={(e) => set({ dueDate: e.target.value })} />
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-400 rounded-xl px-3 py-2"
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              {error}
+            </p>
+          )}
+
+          <button
+            className="btn-primary w-full justify-center text-xs py-2.5 disabled:opacity-50"
+            disabled={!valid || saving}
+            onClick={() => onSubmit(form)}>
+            {saving ? 'Assigning…' : 'Assign Task'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function TeamPage() {
-  const { user, agency } = useAuth()
+  const { user, agency, hasPermission } = useAuth()
   const agencyId = user?.agencyId || agency?.id || ''
+  const canAssignTasks = hasPermission('tasks.manage')
+  const canCreateUsers = hasPermission('users.create')
 
   const [users, setUsers] = useState<ManagedUser[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
@@ -149,6 +271,11 @@ export default function TeamPage() {
   const [reloadKey, setReloadKey] = useState(0)
 
   const [search, setSearch] = useState('')
+
+  // Assign-task modal state
+  const [assignTarget, setAssignTarget] = useState<MemberStats | null>(null)
+  const [assigning, setAssigning] = useState(false)
+  const [assignError, setAssignError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!agencyId) {
@@ -226,6 +353,33 @@ export default function TeamPage() {
     m.roleLabel.toLowerCase().includes(search.toLowerCase())
   )
 
+  // Create a real task assigned to the selected member, then refresh stats.
+  const assignTask = async (form: AssignTaskForm) => {
+    if (!assignTarget || assigning) return
+    setAssigning(true)
+    setAssignError(null)
+    try {
+      await taskService.create(agencyId, {
+        title: form.title.trim(),
+        description: form.description.trim() || undefined,
+        assignedTo: assignTarget.id,
+        priority: form.priority,
+        dueDate: form.dueDate || undefined,
+        status: 'todo',
+      })
+      toastSuccess(`Task assigned to ${assignTarget.name}.`)
+      setAssignTarget(null)
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      console.error('[TeamPage] assign task failed', err)
+      const msg = err instanceof Error ? err.message : 'Could not create the task.'
+      setAssignError(msg)
+      toastError(msg)
+    } finally {
+      setAssigning(false)
+    }
+  }
+
   const totalActiveTasks = tasks.filter((t) => t.status !== 'done').length
   const availableCount = members.filter((m) => m.availability === 'available').length
   const busyCount = members.filter((m) => m.availability === 'busy').length
@@ -255,9 +409,12 @@ export default function TeamPage() {
           <h1 className="text-2xl font-black text-white">Team</h1>
           <p className="text-slate-400 text-sm mt-1">{members.length} members · {availableCount} available · {busyCount} busy</p>
         </div>
-        <button className="btn-primary text-sm">
-          <Plus className="w-4 h-4" /> Invite Member
-        </button>
+        {canCreateUsers && (
+          // Real user creation lives in User Management (/app/users).
+          <Link to="/app/users" className="btn-primary text-sm">
+            <Plus className="w-4 h-4" /> Invite Member
+          </Link>
+        )}
       </div>
 
       {/* KPI row */}
@@ -308,7 +465,12 @@ export default function TeamPage() {
         <>
           <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filtered.map((member, i) => (
-              <MemberCard key={member.id} member={member} i={i} />
+              <MemberCard
+                key={member.id}
+                member={member}
+                i={i}
+                onAssign={canAssignTasks ? (m) => { setAssignError(null); setAssignTarget(m) } : undefined}
+              />
             ))}
           </div>
           {filtered.length === 0 && (
@@ -354,6 +516,19 @@ export default function TeamPage() {
           </div>
         </>
       )}
+
+      {/* Assign task modal */}
+      <AnimatePresence>
+        {assignTarget && (
+          <AssignTaskModal
+            member={assignTarget}
+            saving={assigning}
+            error={assignError}
+            onSubmit={assignTask}
+            onClose={() => setAssignTarget(null)}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

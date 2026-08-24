@@ -2,13 +2,17 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Film, Search, Plus, Clock, Instagram, Youtube, Linkedin,
+  Film, Search, Plus, Clock, Instagram, Youtube, Linkedin, X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { videoService } from '../../services/videoService'
+import { clientService } from '../../services/clientService'
+import { userService, type ManagedUser } from '../../services/userService'
+import { toastSuccess, toastError } from '../../lib/toast'
+import { normalizeRole, ROLES } from '../../config/roles'
 import { statusColors, priorityColors, platformLabels, getInitials } from '../../lib/utils'
-import type { VideoStatus, Video } from '../../types'
+import type { VideoStatus, Video, Client, VideoPlatform, VideoFormat } from '../../types'
 
 const columns: { id: VideoStatus; label: string; color: string }[] = [
   { id: 'idea', label: 'Idea', color: '#64748B' },
@@ -91,9 +95,141 @@ function VideoCard({ video }: { video: Video }) {
   )
 }
 
+// ─── New Video modal ──────────────────────────────────────────────────────────
+
+const PLATFORMS: readonly VideoPlatform[] = ['instagram', 'tiktok', 'youtube', 'facebook', 'linkedin']
+const FORMATS: readonly VideoFormat[] = ['reel', 'short', 'ad', 'story', 'longform', 'podcast']
+
+interface NewVideoForm {
+  clientId: string
+  title: string
+  platform: VideoPlatform
+  format: VideoFormat
+  priority: Video['priority']
+  dueDate: string
+  assignedEditor: string
+}
+
+const EMPTY_VIDEO_FORM: NewVideoForm = {
+  clientId: '', title: '', platform: 'instagram', format: 'reel',
+  priority: 'medium', dueDate: '', assignedEditor: '',
+}
+
+function NewVideoModal({
+  clients, members, saving, error, onSubmit, onClose,
+}: {
+  clients: Client[]
+  members: ManagedUser[]
+  saving: boolean
+  error: string | null
+  onSubmit: (form: NewVideoForm) => void
+  onClose: () => void
+}) {
+  const [form, setForm] = useState<NewVideoForm>(EMPTY_VIDEO_FORM)
+  const set = (patch: Partial<NewVideoForm>) => setForm((f) => ({ ...f, ...patch }))
+  const valid = form.clientId !== '' && form.title.trim().length > 0
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+      onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass-blue rounded-3xl p-6 w-full max-w-md">
+
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-base font-black text-white">New Video</h2>
+          <button onClick={onClose} aria-label="Close"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Client</label>
+            <select className="input py-2 text-xs mt-1" value={form.clientId}
+              onChange={(e) => set({ clientId: e.target.value })}>
+              <option value="">Select a client…</option>
+              {clients.map((c) => <option key={c.id} value={c.id}>{c.brandName || c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Title</label>
+            <input className="input py-2 text-xs mt-1" placeholder="Video title"
+              value={form.title} onChange={(e) => set({ title: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Platform</label>
+              <select className="input py-2 text-xs mt-1" value={form.platform}
+                onChange={(e) => set({ platform: e.target.value as VideoPlatform })}>
+                {PLATFORMS.map((p) => <option key={p} value={p}>{platformLabels[p] ?? p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Format</label>
+              <select className="input py-2 text-xs mt-1" value={form.format}
+                onChange={(e) => set({ format: e.target.value as VideoFormat })}>
+                {FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Priority</label>
+              <select className="input py-2 text-xs mt-1" value={form.priority}
+                onChange={(e) => set({ priority: e.target.value as Video['priority'] })}>
+                {(['low', 'medium', 'high', 'urgent'] as const).map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Due Date</label>
+              <input type="date" className="input py-2 text-xs mt-1" value={form.dueDate}
+                onChange={(e) => set({ dueDate: e.target.value })} />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Assigned Editor (optional)</label>
+            <select className="input py-2 text-xs mt-1" value={form.assignedEditor}
+              onChange={(e) => set({ assignedEditor: e.target.value })}>
+              <option value="">Unassigned</option>
+              {members.map((m) => <option key={m.id} value={m.id}>{m.full_name || m.email}</option>)}
+            </select>
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-400 rounded-xl px-3 py-2"
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              {error}
+            </p>
+          )}
+
+          <button
+            className="btn-primary w-full justify-center text-xs py-2.5 disabled:opacity-50"
+            disabled={!valid || saving}
+            onClick={() => onSubmit(form)}>
+            {saving ? 'Creating…' : 'Create Video'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function VideoPipeline() {
-  const { user, agency } = useAuth()
+  const { user, agency, hasPermission } = useAuth()
   const agencyId = user?.agencyId || agency?.id || ''
+  const canManage = hasPermission('videos.manage')
 
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
@@ -103,6 +239,14 @@ export default function VideoPipeline() {
   const [search, setSearch] = useState('')
   const [selectedClient, setSelectedClient] = useState('All')
   const [view, setView] = useState<'board' | 'list'>('board')
+
+  // New-video modal state. Client/editor pickers load on first open.
+  const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [pickersLoaded, setPickersLoaded] = useState(false)
+  const [clientRows, setClientRows] = useState<Client[]>([])
+  const [members, setMembers] = useState<ManagedUser[]>([])
 
   useEffect(() => {
     if (!agencyId) {
@@ -142,6 +286,54 @@ export default function VideoPipeline() {
     } catch (err) {
       console.error('[VideoPipeline] status update failed', err)
       setVideos(previous)
+      toastError(err instanceof Error ? err.message : 'Could not move the video.')
+    }
+  }
+
+  // Open the new-video modal; lazily fetch client/editor pickers once.
+  const openCreate = async () => {
+    setCreateError(null)
+    setShowCreate(true)
+    if (pickersLoaded || !agencyId) return
+    try {
+      const [cRows, uRows] = await Promise.all([
+        clientService.getAll(agencyId),
+        userService.listUsers(agencyId),
+      ])
+      setClientRows(cRows)
+      setMembers(uRows.filter((u) => normalizeRole(u.role) !== ROLES.CLIENT && u.status !== 'inactive'))
+      setPickersLoaded(true)
+    } catch (err) {
+      console.error('[VideoPipeline] picker load failed', err)
+      toastError('Could not load clients and team members for the form.')
+    }
+  }
+
+  const createVideo = async (form: NewVideoForm) => {
+    if (creating) return
+    setCreating(true)
+    setCreateError(null)
+    try {
+      await videoService.create(agencyId, {
+        clientId: form.clientId,
+        title: form.title.trim(),
+        platform: form.platform,
+        format: form.format,
+        priority: form.priority,
+        dueDate: form.dueDate || undefined,
+        assignedEditor: form.assignedEditor || undefined,
+        status: 'idea',
+      })
+      toastSuccess('Video created.')
+      setShowCreate(false)
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      console.error('[VideoPipeline] create failed', err)
+      const msg = err instanceof Error ? err.message : 'Could not create the video.'
+      setCreateError(msg)
+      toastError(msg)
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -192,9 +384,11 @@ export default function VideoPipeline() {
               </button>
             ))}
           </div>
-          <button className="btn-primary text-sm">
-            <Plus className="w-4 h-4" /> Add Video
-          </button>
+          {canManage && (
+            <button className="btn-primary text-sm" onClick={() => void openCreate()}>
+              <Plus className="w-4 h-4" /> Add Video
+            </button>
+          )}
         </div>
       </div>
 
@@ -320,6 +514,20 @@ export default function VideoPipeline() {
           )}
         </div>
       )}
+
+      {/* New video modal */}
+      <AnimatePresence>
+        {showCreate && (
+          <NewVideoModal
+            clients={clientRows}
+            members={members}
+            saving={creating}
+            error={createError}
+            onSubmit={createVideo}
+            onClose={() => setShowCreate(false)}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

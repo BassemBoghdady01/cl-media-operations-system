@@ -5,6 +5,9 @@ import {
   Copy, Check, RefreshCw, ChevronDown, ArrowRight,
   Film, Lightbulb, BarChart2,
 } from 'lucide-react'
+import { APP_CONFIG } from '../../config/app'
+import { toastError } from '../../lib/toast'
+import { aiService, type AIGenerationInput, type AIGenerationOutput } from '../../services/aiService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -499,15 +502,31 @@ const TOOLS = [
 
 type ToolId = typeof TOOLS[number]['id']
 
+/** UI tool ids → the API's toolType values. */
+const TOOL_TYPE: Record<ToolId, AIGenerationInput['toolType']> = {
+  ideas: 'ideas',
+  script: 'scripts',
+  caption: 'captions',
+  hooks: 'hooks',
+  angles: 'angles',
+  calendar: 'calendar',
+}
+
+const NOTHING_GENERATED: Record<ToolId, boolean> = {
+  ideas: false, script: false, caption: false, hooks: false, angles: false, calendar: false,
+}
+
 const INDUSTRIES = ['Real Estate', 'Fashion', 'Food & Beverage', 'Technology', 'Fitness', 'Hospitality', 'E-Commerce', 'Healthcare', 'Education', 'Other']
 const GOALS = ['Attract Investors', 'Brand Awareness', 'Lead Generation', 'Sales', 'Community Building', 'Product Launch', 'Employer Branding']
 const PLATFORMS = ['Instagram', 'TikTok', 'YouTube Shorts', 'Facebook', 'LinkedIn']
 const TONES = ['Professional', 'Energetic', 'Inspirational', 'Educational', 'Humorous', 'Luxury', 'Bold', 'Emotional']
 
+const AI_ENABLED = APP_CONFIG.features.aiEnabled
+
 export default function AIStudio() {
   const [activeTool, setActiveTool] = useState<ToolId>('ideas')
   const [loading, setLoading] = useState(false)
-  const [generated, setGenerated] = useState(false)
+  const [generated, setGenerated] = useState<Record<ToolId, boolean>>(NOTHING_GENERATED)
   const [copied, setCopied] = useState<string | null>(null)
   const [input, setInput] = useState<GenerationInput>(SAMPLE_INPUT)
 
@@ -522,25 +541,108 @@ export default function AIStudio() {
   const updateInput = (k: keyof GenerationInput, v: string | number) =>
     setInput((prev) => ({ ...prev, [k]: v }))
 
-  const handleGenerate = useCallback(() => {
-    setLoading(true)
-    setGenerated(false)
-    setTimeout(() => {
+  /** Maps a real AI response into the active tool's state. Returns false when empty. */
+  const applyAiOutput = useCallback((tool: ToolId, out: AIGenerationOutput): boolean => {
+    switch (tool) {
+      case 'ideas':
+        if (!out.ideas?.length) return false
+        setIdeas(out.ideas)
+        return true
+      case 'hooks':
+        if (!out.hooks?.length) return false
+        setHooks(out.hooks)
+        return true
+      case 'angles':
+        if (!out.angles?.length) return false
+        setAngles(out.angles)
+        return true
+      case 'caption': {
+        const c = out.captions?.[0]
+        if (!c) return false
+        setCaption({ main: c.main ?? '', short: c.short ?? '', hashtags: c.hashtags ?? [] })
+        return true
+      }
+      case 'script': {
+        const s = out.scripts?.[0]
+        if (!s) return false
+        const withShotList = s as typeof s & { shotList?: string[] }
+        setScript({
+          title: s.title ?? '',
+          hook: s.hook ?? '',
+          scenes: (Array.isArray(s.scenes) ? (s.scenes as Array<Record<string, string>>) : []).map((sc) => ({
+            time: sc.time ?? '', visual: sc.visual ?? '', voiceover: sc.voiceover ?? '', text: sc.text ?? '',
+          })),
+          cta: s.cta ?? '',
+          shotList: withShotList.shotList ?? [],
+          caption: s.caption ?? '',
+          hashtags: s.hashtags ?? [],
+        })
+        return true
+      }
+      case 'calendar': {
+        if (!out.calendar?.length) return false
+        const perWeek = Math.max(1, Math.ceil(out.calendar.length / 4))
+        setCalendar(out.calendar.map((c, i) => ({
+          week: Math.min(4, Math.floor(i / perWeek) + 1),
+          day: c.date ?? `Day ${i + 1}`,
+          type: c.contentType ?? 'Post',
+          title: c.title ?? '',
+          platform: c.platform ?? input.platform,
+        })))
+        return true
+      }
+    }
+  }, [input.platform])
+
+  const handleGenerate = useCallback(async () => {
+    if (!AI_ENABLED) {
+      // Honest offline mode: deterministic built-in templates, generated
+      // instantly — no fake "analyzing" delay pretending to be an AI call.
       setIdeas(getIdeas(input))
       setScript(generateScript(input))
       setCaption(generateCaption(input))
       setHooks(generateHooks(input))
       setAngles(generateAngles(input))
       setCalendar(generateCalendar(input))
+      setGenerated({ ideas: true, script: true, caption: true, hooks: true, angles: true, calendar: true })
+      return
+    }
+
+    setLoading(true)
+    try {
+      const out = await aiService.generate({
+        toolType: TOOL_TYPE[activeTool],
+        companyName: input.company,
+        industry: input.industry,
+        description: input.description || undefined,
+        targetAudience: input.audience || undefined,
+        productService: input.product || undefined,
+        goal: input.goal,
+        platform: input.platform,
+        tone: input.tone,
+        count: input.count,
+      })
+      if (applyAiOutput(activeTool, out)) {
+        setGenerated((g) => ({ ...g, [activeTool]: true }))
+      } else {
+        toastError('The AI returned an empty result — please try again.')
+      }
+    } catch (err) {
+      console.error('[AIStudio] generation failed', err)
+      toastError(err instanceof Error ? err.message : 'AI generation failed.')
+    } finally {
       setLoading(false)
-      setGenerated(true)
-    }, 1600)
-  }, [input])
+    }
+  }, [input, activeTool, applyAiOutput])
 
   const handleCopy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text).catch(() => {})
-    setCopied(key)
-    setTimeout(() => setCopied(null), 2000)
+    navigator.clipboard.writeText(text).then(
+      () => {
+        setCopied(key)
+        setTimeout(() => setCopied(null), 2000)
+      },
+      () => toastError('Could not copy to clipboard.')
+    )
   }
 
   const CopyBtn = ({ text, id }: { text: string; id: string }) => (
@@ -578,7 +680,7 @@ export default function AIStudio() {
           <p className="text-slate-400 text-sm">Dynamic content generation trained for media production agencies. Fill the form, click Generate.</p>
         </div>
         <button
-          onClick={() => { setInput(SAMPLE_INPUT); setGenerated(false) }}
+          onClick={() => { setInput(SAMPLE_INPUT); setGenerated(NOTHING_GENERATED) }}
           className="btn-secondary text-xs py-2 px-4">
           <Film className="w-3.5 h-3.5" /> Load Al Naseel Example
         </button>
@@ -678,6 +780,13 @@ export default function AIStudio() {
               </div>
             )}
 
+            {!AI_ENABLED && (
+              <p className="text-[10px] text-amber-400/80 leading-relaxed px-1">
+                AI is not configured on this deployment (VITE_ENABLE_AI). Output is generated
+                instantly from built-in industry templates, not by an AI model.
+              </p>
+            )}
+
             <button
               onClick={handleGenerate}
               disabled={loading || !input.company}
@@ -699,7 +808,7 @@ export default function AIStudio() {
           <AnimatePresence mode="wait">
 
             {/* Empty state */}
-            {!loading && !generated && (
+            {!loading && !generated[activeTool] && (
               <motion.div
                 key="empty"
                 initial={{ opacity: 0 }}
@@ -744,7 +853,7 @@ export default function AIStudio() {
             )}
 
             {/* Content Ideas */}
-            {generated && activeTool === 'ideas' && (
+            {!loading && generated.ideas && activeTool === 'ideas' && (
               <motion.div key="ideas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-sm font-bold text-white">{ideas.length} Content Ideas — {input.company} · {input.platform}</h2>
@@ -795,7 +904,7 @@ export default function AIStudio() {
             )}
 
             {/* Reel Script */}
-            {generated && activeTool === 'script' && script && (
+            {!loading && generated.script && activeTool === 'script' && script && (
               <motion.div key="script" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-sm font-bold text-white">Script: {script.title}</h2>
@@ -882,7 +991,7 @@ export default function AIStudio() {
             )}
 
             {/* Caption */}
-            {generated && activeTool === 'caption' && caption && (
+            {!loading && generated.caption && activeTool === 'caption' && caption && (
               <motion.div key="caption" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-sm font-bold text-white">Caption for {input.company} — {input.platform}</h2>
@@ -912,7 +1021,7 @@ export default function AIStudio() {
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {caption.hashtags.map((h) => (
-                      <span key={h} className="text-xs px-2.5 py-1 rounded-xl text-blue-400 cursor-pointer hover:bg-blue-500/20 transition-colors"
+                      <span key={h} className="text-xs px-2.5 py-1 rounded-xl text-blue-400"
                         style={{ background: 'rgba(59,130,246,0.1)' }}>{h}</span>
                     ))}
                   </div>
@@ -921,7 +1030,7 @@ export default function AIStudio() {
             )}
 
             {/* Hooks */}
-            {generated && activeTool === 'hooks' && (
+            {!loading && generated.hooks && activeTool === 'hooks' && (
               <motion.div key="hooks" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-sm font-bold text-white">10 Hooks — {input.company} · {input.industry}</h2>
@@ -948,7 +1057,7 @@ export default function AIStudio() {
             )}
 
             {/* Campaign Angles */}
-            {generated && activeTool === 'angles' && (
+            {!loading && generated.angles && activeTool === 'angles' && (
               <motion.div key="angles" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-sm font-bold text-white">Campaign Angles — {input.company} · {input.goal}</h2>
@@ -983,7 +1092,7 @@ export default function AIStudio() {
             )}
 
             {/* Content Calendar */}
-            {generated && activeTool === 'calendar' && (
+            {!loading && generated.calendar && activeTool === 'calendar' && (
               <motion.div key="calendar" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-sm font-bold text-white">30-Day Content Calendar — {input.company} · {input.platform}</h2>
@@ -998,7 +1107,7 @@ export default function AIStudio() {
                         {weekItems.map((item, i) => (
                           <motion.div key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.07 }}
                             className="flex items-center gap-3 p-2.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                            <span className="text-[10px] font-bold text-blue-400 w-8 flex-shrink-0">{item.day}</span>
+                            <span className="text-[10px] font-bold text-blue-400 w-12 flex-shrink-0 truncate">{item.day}</span>
                             <span className="text-[9px] px-1.5 py-0.5 rounded-md text-slate-500 flex-shrink-0"
                               style={{ background: 'rgba(255,255,255,0.05)' }}>{item.type}</span>
                             <span className="text-xs text-slate-300 flex-1 min-w-0 truncate">{item.title}</span>

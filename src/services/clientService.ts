@@ -20,6 +20,7 @@ export function mapClient(r: Row): Client {
     socialLinks: r.social_links ?? undefined,
     accountManagerId: r.assigned_manager_id ?? undefined,
     portalAccess: !!r.portal_access_enabled,
+    notes: r.notes ?? undefined,
     createdAt: dstr(r.created_at),
   }
 }
@@ -73,6 +74,7 @@ export const clientService = {
     if (updates.color !== undefined) patch.color = updates.color
     if (updates.accountManagerId !== undefined) patch.assigned_manager_id = updates.accountManagerId
     if (updates.portalAccess !== undefined) patch.portal_access_enabled = updates.portalAccess
+    if (updates.notes !== undefined) patch.notes = updates.notes || null
     const { error } = await db().from('clients').update(patch).eq('id', id)
     orThrow('clientService.update', error)
   },

@@ -504,27 +504,28 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 lg:px-12">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}
-              className="rounded-3xl overflow-hidden"
+              aria-hidden="true"
+              className="rounded-3xl overflow-hidden pointer-events-none select-none"
               style={{ background: 'rgba(13,22,47,0.8)', border: '1px solid rgba(16,185,129,0.2)' }}>
               <div className="p-4 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(16,185,129,0.04)' }}>
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(16,185,129,0.2)' }}>
                     <Eye className="w-3.5 h-3.5 text-green-400" />
                   </div>
-                  <span className="text-xs font-bold text-white">Client Dashboard — Al Naseel</span>
+                  <span className="text-xs font-bold text-white">Client Dashboard — preview</span>
                 </div>
                 <span className="text-[9px] text-blue-300 font-medium px-2 py-0.5 rounded-full animate-pulse"
                   style={{ background: 'rgba(59,130,246,0.1)' }}>1 video awaiting review</span>
               </div>
               <div className="p-5 space-y-3">
                 <div className="p-3 rounded-xl" style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)' }}>
-                  <p className="text-xs font-bold text-white mb-1">Al Naseel Tower Walk-Through Reel v2</p>
+                  <p className="text-xs font-bold text-white mb-1">Walk-Through Reel v2</p>
                   <p className="text-[10px] text-blue-300 mb-2.5">Action required — please review and approve</p>
                   <div className="flex gap-2">
-                    <button className="flex-1 text-[10px] py-1.5 rounded-lg font-semibold text-slate-400"
-                      style={{ background: 'rgba(255,255,255,0.05)' }}>Request Changes</button>
-                    <button className="flex-1 text-[10px] py-1.5 rounded-lg font-bold text-white"
-                      style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>✓ Approve</button>
+                    <div className="flex-1 text-[10px] py-1.5 rounded-lg font-semibold text-slate-400 text-center"
+                      style={{ background: 'rgba(255,255,255,0.05)' }}>Request Changes</div>
+                    <div className="flex-1 text-[10px] py-1.5 rounded-lg font-bold text-white text-center"
+                      style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>✓ Approve</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -669,11 +670,10 @@ export default function LandingPage() {
             <span className="text-sm font-bold text-white">EZ Marketing Agency</span>
             <span className="text-xs text-slate-600">Media Operations System</span>
           </div>
-          <div className="flex gap-6 text-xs text-slate-500">
-            {['Privacy', 'Terms', 'Support'].map((l) => (
-              <a key={l} href="#" className="hover:text-slate-300 transition-colors">{l}</a>
-            ))}
-          </div>
+          <a href="mailto:support@ezmarketing.agency"
+            className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+            support@ezmarketing.agency
+          </a>
           <p className="text-xs text-slate-600">© 2025 EZ Marketing Agency. All rights reserved.</p>
         </div>
       </footer>

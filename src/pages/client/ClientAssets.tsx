@@ -50,6 +50,19 @@ export default function ClientAssets() {
   const folders = ['all', ...Array.from(new Set(assets.map((a) => a.folder)))]
   const filtered = activeFolder === 'all' ? assets : assets.filter((a) => a.folder === activeFolder)
 
+  if (loadError) {
+    return (
+      <PageErrorState
+        message={loadError}
+        onRetry={() => {
+          setLoadError(null)
+          setLoading(true)
+          window.location.reload()
+        }}
+      />
+    )
+  }
+
   return (
     <div className="px-5 py-6 max-w-5xl mx-auto">
       <div className="mb-6">
@@ -108,19 +121,19 @@ export default function ClientAssets() {
                   </div>
                 </div>
 
-                {asset.url ? (
+                {/* Download only exists when the asset has a real file URL —
+                    no dead placeholder icon for files that cannot be fetched. */}
+                {asset.url && (
                   <a
                     href={asset.url}
                     download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Download ${asset.name}`}
                     className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100"
                     style={{ background: 'rgba(255,255,255,0.05)' }}>
                     <Download className="w-3.5 h-3.5" />
                   </a>
-                ) : (
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-700"
-                    style={{ background: 'rgba(255,255,255,0.03)' }}>
-                    <Download className="w-3.5 h-3.5" />
-                  </div>
                 )}
               </motion.div>
             ))}

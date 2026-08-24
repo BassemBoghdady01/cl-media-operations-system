@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   CreditCard, Plus, Search, Clock, AlertTriangle,
-  CheckCircle, Send, Download, TrendingUp, FileText,
+  CheckCircle, Send, TrendingUp, FileText, X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { invoiceService } from '../../services/invoiceService'
+import { clientService } from '../../services/clientService'
+import { toastSuccess, toastError } from '../../lib/toast'
 import { formatCurrency, formatDate, getInitials } from '../../lib/utils'
-import type { Invoice } from '../../types'
+import type { Client, Invoice } from '../../types'
 
 const statusConfig: Record<string, { label: string; icon: any; bg: string; text: string }> = {
   draft: { label: 'Draft', icon: FileText, bg: 'rgba(100,116,139,0.2)', text: '#94A3B8' },
@@ -19,11 +21,11 @@ const statusConfig: Record<string, { label: string; icon: any; bg: string; text:
 }
 
 function InvoiceRow({
-  invoice, i, onMarkPaid, marking,
-}: { invoice: Invoice; i: number; onMarkPaid: (invoice: Invoice) => void; marking: boolean }) {
+  invoice, i, canManage, onMarkPaid, marking,
+}: { invoice: Invoice; i: number; canManage: boolean; onMarkPaid: (invoice: Invoice) => void; marking: boolean }) {
   const cfg = statusConfig[invoice.status] ?? statusConfig.draft
   const StatusIcon = cfg.icon
-  const canMarkPaid = invoice.status === 'sent' || invoice.status === 'overdue'
+  const canMarkPaid = canManage && (invoice.status === 'sent' || invoice.status === 'overdue')
 
   return (
     <motion.div
@@ -75,10 +77,7 @@ function InvoiceRow({
       </div>
 
       {/* Actions */}
-      <div className="flex-shrink-0 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all">
-          <Download className="w-3.5 h-3.5" />
-        </button>
+      <div className="flex-shrink-0 w-16 flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
         {canMarkPaid && (
           <button
             title="Mark as paid"
@@ -93,15 +92,166 @@ function InvoiceRow({
   )
 }
 
+interface NewInvoiceForm {
+  clientId: string
+  invoiceNumber: string
+  amount: string
+  tax: string
+  discount: string
+  total: string
+  dueDate: string
+  status: 'draft' | 'sent'
+  notes: string
+}
+
+function NewInvoiceModal({
+  clients, suggestedNumber, saving, error, onSubmit, onClose,
+}: {
+  clients: Client[]
+  suggestedNumber: string
+  saving: boolean
+  error: string | null
+  onSubmit: (form: NewInvoiceForm) => void
+  onClose: () => void
+}) {
+  const [form, setForm] = useState<NewInvoiceForm>({
+    clientId: '', invoiceNumber: suggestedNumber, amount: '', tax: '',
+    discount: '', total: '', dueDate: '', status: 'draft', notes: '',
+  })
+  const [totalEdited, setTotalEdited] = useState(false)
+
+  const set = (patch: Partial<NewInvoiceForm>) => setForm((f) => ({ ...f, ...patch }))
+
+  /** amount + tax − discount; recomputed while the user hasn't hand-edited total. */
+  const setMoney = (patch: Partial<Pick<NewInvoiceForm, 'amount' | 'tax' | 'discount'>>) =>
+    setForm((f) => {
+      const next = { ...f, ...patch }
+      if (!totalEdited) {
+        const auto = (Number(next.amount) || 0) + (Number(next.tax) || 0) - (Number(next.discount) || 0)
+        next.total = String(auto)
+      }
+      return next
+    })
+
+  const valid = form.clientId && form.invoiceNumber.trim() &&
+    form.amount !== '' && Number.isFinite(Number(form.amount)) &&
+    Number.isFinite(Number(form.total))
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+      onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-base font-black text-white">New Invoice</h2>
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Client</label>
+            <select className="input py-2 text-xs mt-1" value={form.clientId}
+              onChange={(e) => set({ clientId: e.target.value })}>
+              <option value="">Select a client…</option>
+              {clients.map((c) => <option key={c.id} value={c.id}>{c.brandName || c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Invoice Number</label>
+            <input className="input py-2 text-xs mt-1" placeholder="INV-202608-001"
+              value={form.invoiceNumber} onChange={(e) => set({ invoiceNumber: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Amount (USD)</label>
+              <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
+                value={form.amount} onChange={(e) => setMoney({ amount: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Tax</label>
+              <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
+                value={form.tax} onChange={(e) => setMoney({ tax: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Discount</label>
+              <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
+                value={form.discount} onChange={(e) => setMoney({ discount: e.target.value })} />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Total (auto = amount + tax − discount)</label>
+            <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
+              value={form.total}
+              onChange={(e) => { setTotalEdited(true); set({ total: e.target.value }) }} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Due Date</label>
+              <input type="date" className="input py-2 text-xs mt-1" value={form.dueDate}
+                onChange={(e) => set({ dueDate: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Status</label>
+              <select className="input py-2 text-xs mt-1" value={form.status}
+                onChange={(e) => set({ status: e.target.value as 'draft' | 'sent' })}>
+                <option value="draft">Draft</option>
+                <option value="sent">Sent</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Notes (optional)</label>
+            <textarea className="input py-2 text-xs mt-1 min-h-[56px]" placeholder="Payment terms, references…"
+              value={form.notes} onChange={(e) => set({ notes: e.target.value })} />
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-400 rounded-xl px-3 py-2"
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              {error}
+            </p>
+          )}
+
+          <button
+            className="btn-primary w-full justify-center text-xs py-2.5 disabled:opacity-50"
+            disabled={!valid || saving}
+            onClick={() => onSubmit(form)}>
+            {saving ? 'Creating…' : 'Create Invoice'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function BillingPage() {
-  const { user, agency } = useAuth()
+  const { user, agency, hasPermission } = useAuth()
   const agencyId = user?.agencyId || agency?.id || ''
+  const canManage = hasPermission('invoices.manage')
 
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [markingId, setMarkingId] = useState<string | null>(null)
+
+  const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
 
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('All')
@@ -117,9 +267,13 @@ export default function BillingPage() {
       setLoading(true)
       setError(null)
       try {
-        const rows = await invoiceService.getAll(agencyId)
+        const [rows, clientRows] = await Promise.all([
+          invoiceService.getAll(agencyId),
+          clientService.getAll(agencyId),
+        ])
         if (cancelled) return
         setInvoices(rows)
+        setClients(clientRows)
       } catch (err) {
         if (cancelled) return
         console.error('[BillingPage] load failed', err)
@@ -142,11 +296,56 @@ export default function BillingPage() {
     )
     try {
       await invoiceService.markPaid(invoice.id)
+      toastSuccess(`${invoice.invoiceNumber} marked as paid.`)
     } catch (err) {
       console.error('[BillingPage] markPaid failed', err)
       setInvoices(previous)
+      toastError(err instanceof Error ? err.message : `Could not mark ${invoice.invoiceNumber} as paid.`)
     } finally {
       setMarkingId(null)
+    }
+  }
+
+  /** Suggest the next number in this month's INV-YYYYMM-### sequence. */
+  const suggestInvoiceNumber = () => {
+    const now = new Date()
+    const prefix = `INV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}-`
+    const existing = new Set(invoices.map((i) => i.invoiceNumber))
+    let n = invoices.filter((i) => i.invoiceNumber.startsWith(prefix)).length + 1
+    let candidate = `${prefix}${String(n).padStart(3, '0')}`
+    while (existing.has(candidate)) {
+      n += 1
+      candidate = `${prefix}${String(n).padStart(3, '0')}`
+    }
+    return candidate
+  }
+
+  const createInvoice = async (form: NewInvoiceForm) => {
+    setCreating(true)
+    setCreateError(null)
+    try {
+      await invoiceService.create(agencyId, {
+        clientId: form.clientId,
+        invoiceNumber: form.invoiceNumber.trim(),
+        amount: Number(form.amount) || 0,
+        tax: Number(form.tax) || 0,
+        discount: Number(form.discount) || 0,
+        total: Number(form.total) || 0,
+        status: form.status,
+        dueDate: form.dueDate || undefined,
+        issuedDate: form.status === 'sent' ? new Date().toISOString().slice(0, 10) : undefined,
+        notes: form.notes.trim() || undefined,
+      })
+      toastSuccess(`Invoice ${form.invoiceNumber.trim()} created.`)
+      setShowCreate(false)
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      console.error('[BillingPage] create failed', err)
+      const msg = err instanceof Error ? err.message : 'Could not create the invoice.'
+      setCreateError(msg)
+      toastError(msg)
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -190,9 +389,11 @@ export default function BillingPage() {
             {loading ? 'Loading invoices…' : `${invoices.length} invoices total`}
           </p>
         </div>
-        <button className="btn-primary text-sm">
-          <Plus className="w-4 h-4" /> Create Invoice
-        </button>
+        {canManage && (
+          <button className="btn-primary text-sm" onClick={() => { setCreateError(null); setShowCreate(true) }}>
+            <Plus className="w-4 h-4" /> Create Invoice
+          </button>
+        )}
       </div>
 
       {/* Loading */}
@@ -271,7 +472,7 @@ export default function BillingPage() {
             </div>
             <div>
               {filtered.map((inv, i) => (
-                <InvoiceRow key={inv.id} invoice={inv} i={i}
+                <InvoiceRow key={inv.id} invoice={inv} i={i} canManage={canManage}
                   onMarkPaid={markPaid} marking={markingId === inv.id} />
               ))}
               {filtered.length === 0 && (
@@ -286,6 +487,19 @@ export default function BillingPage() {
           </div>
         </>
       )}
+
+      <AnimatePresence>
+        {showCreate && (
+          <NewInvoiceModal
+            clients={clients}
+            suggestedNumber={suggestInvoiceNumber()}
+            saving={creating}
+            error={createError}
+            onSubmit={createInvoice}
+            onClose={() => setShowCreate(false)}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

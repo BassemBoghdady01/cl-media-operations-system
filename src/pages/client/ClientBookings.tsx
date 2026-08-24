@@ -43,6 +43,19 @@ export default function ClientBookings() {
   )
   const past = bookings.filter((b) => ['completed', 'cancelled'].includes(b.status))
 
+  if (loadError) {
+    return (
+      <PageErrorState
+        message={loadError}
+        onRetry={() => {
+          setLoadError(null)
+          setLoading(true)
+          window.location.reload()
+        }}
+      />
+    )
+  }
+
   return (
     <div className="px-5 py-6 max-w-4xl mx-auto">
       <div className="mb-6">
