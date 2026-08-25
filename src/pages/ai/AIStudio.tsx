@@ -661,7 +661,7 @@ export default function AIStudio() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 lg:p-8">
+      className="p-4 sm:p-6 lg:p-8">
 
       {/* Header */}
       <div className="flex items-start justify-between mb-8 flex-wrap gap-4">
@@ -756,7 +756,7 @@ export default function AIStudio() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="text-[10px] font-medium text-slate-500 mb-1 block">Platform</label>
                 <select className="input text-xs py-2" value={input.platform} onChange={(e) => updateInput('platform', e.target.value)}>
@@ -855,7 +855,7 @@ export default function AIStudio() {
             {/* Content Ideas */}
             {!loading && generated.ideas && activeTool === 'ideas' && (
               <motion.div key="ideas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <h2 className="text-sm font-bold text-white">{ideas.length} Content Ideas — {input.company} · {input.platform}</h2>
                   <button onClick={handleGenerate} className="btn-secondary text-xs py-1.5 px-3">
                     <RefreshCw className="w-3 h-3" /> Regenerate
@@ -906,7 +906,7 @@ export default function AIStudio() {
             {/* Reel Script */}
             {!loading && generated.script && activeTool === 'script' && script && (
               <motion.div key="script" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <h2 className="text-sm font-bold text-white">Script: {script.title}</h2>
                   <div className="flex gap-2">
                     <CopyBtn text={`${script.title}\n\nHOOK: ${script.hook}\n\n${script.scenes.map((s) => `[${s.time}]\nVisual: ${s.visual}\nVO: ${s.voiceover}\nText: ${s.text}`).join('\n\n')}\n\nCTA: ${script.cta}`} id="full-script" />
@@ -993,7 +993,7 @@ export default function AIStudio() {
             {/* Caption */}
             {!loading && generated.caption && activeTool === 'caption' && caption && (
               <motion.div key="caption" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <h2 className="text-sm font-bold text-white">Caption for {input.company} — {input.platform}</h2>
                   <button onClick={handleGenerate} className="btn-secondary text-xs py-1.5 px-3"><RefreshCw className="w-3 h-3" /></button>
                 </div>
@@ -1032,7 +1032,7 @@ export default function AIStudio() {
             {/* Hooks */}
             {!loading && generated.hooks && activeTool === 'hooks' && (
               <motion.div key="hooks" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <h2 className="text-sm font-bold text-white">10 Hooks — {input.company} · {input.industry}</h2>
                   <button onClick={handleGenerate} className="btn-secondary text-xs py-1.5 px-3"><RefreshCw className="w-3 h-3" /></button>
                 </div>
@@ -1059,7 +1059,7 @@ export default function AIStudio() {
             {/* Campaign Angles */}
             {!loading && generated.angles && activeTool === 'angles' && (
               <motion.div key="angles" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <h2 className="text-sm font-bold text-white">Campaign Angles — {input.company} · {input.goal}</h2>
                   <button onClick={handleGenerate} className="btn-secondary text-xs py-1.5 px-3"><RefreshCw className="w-3 h-3" /></button>
                 </div>
@@ -1094,7 +1094,7 @@ export default function AIStudio() {
             {/* Content Calendar */}
             {!loading && generated.calendar && activeTool === 'calendar' && (
               <motion.div key="calendar" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <h2 className="text-sm font-bold text-white">30-Day Content Calendar — {input.company} · {input.platform}</h2>
                   <button onClick={handleGenerate} className="btn-secondary text-xs py-1.5 px-3"><RefreshCw className="w-3 h-3" /></button>
                 </div>

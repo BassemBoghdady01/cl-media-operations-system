@@ -166,7 +166,7 @@ function UploadAssetModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto">
 
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-black text-white">Upload Asset</h2>
@@ -213,7 +213,7 @@ function UploadAssetModal({
               value={form.name} onChange={(e) => set({ name: e.target.value })} />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide">Type</label>
               <select className="input py-2 text-xs mt-1 capitalize" value={form.type}
@@ -386,7 +386,7 @@ export default function AssetLibrary() {
 
   if (error) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <PageErrorState
           title="We couldn't load the asset library"
           message={error}
@@ -400,7 +400,7 @@ export default function AssetLibrary() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 lg:p-8">
+      className="p-4 sm:p-6 lg:p-8">
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
@@ -496,8 +496,8 @@ export default function AssetLibrary() {
             {/* Asset grid */}
             <div className="lg:col-span-4">
               {/* Search + filter */}
-              <div className="flex gap-3 mb-5">
-                <div className="relative flex-1">
+              <div className="flex flex-wrap gap-3 mb-5">
+                <div className="relative flex-1 min-w-0">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
                   <input className="input pl-9 py-2 text-xs" placeholder="Search assets…"
                     value={search} onChange={(e) => setSearch(e.target.value)} />

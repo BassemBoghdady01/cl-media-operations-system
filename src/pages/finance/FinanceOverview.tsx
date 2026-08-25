@@ -143,7 +143,7 @@ export default function FinanceOverview() {
       ) : (
         <div className="space-y-5">
           {/* ── Headline ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               label="Revenue collected" color="#10B981" emphasis
               value={formatMoney(s?.revenue_collected ?? 0, currency)}
@@ -167,7 +167,7 @@ export default function FinanceOverview() {
           </div>
 
           {/* ── Secondary ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               label="Outstanding" color="#F59E0B"
               value={formatMoney(s?.revenue_outstanding ?? 0, currency)}
@@ -234,7 +234,7 @@ export default function FinanceOverview() {
                 <InsufficientData message="More financial history is required to calculate break-even accurately. Record at least two months of transactions and configure your recurring costs and payroll." />
               ) : (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <p className="text-[11px] text-slate-500 mb-1">Monthly fixed cost</p>
                       <p className="text-lg font-black text-white">{formatMoney(breakEven.monthly_fixed_cost, currency)}</p>
@@ -271,7 +271,7 @@ export default function FinanceOverview() {
                     <p className="text-xs text-green-400">Recurring revenue covers your fixed cost base.</p>
                   )}
 
-                  <div className="pt-3 border-t border-white/5 grid grid-cols-2 gap-3">
+                  <div className="pt-3 border-t border-white/5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <p className="text-[11px] text-slate-500 mb-1">Avg monthly burn</p>
                       <p className="text-sm font-bold text-white">
@@ -299,20 +299,22 @@ export default function FinanceOverview() {
                 <EmptyState icon="🧾" title="No expenses yet"
                   description="Recorded expenses will break down by category here." />
               ) : (
-                <div className="flex items-center gap-4">
-                  <ResponsiveContainer width="55%" height={190}>
-                    <PieChart>
-                      <Pie data={expenseData} dataKey="total" nameKey="category_name"
-                        innerRadius={45} outerRadius={80} paddingAngle={2}>
-                        {expenseData.map((e) => <Cell key={e.category_name} fill={e.color} />)}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{ background: '#0B1220', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, fontSize: 12 }}
-                        formatter={(v: number) => formatMoney(v, currency)}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex-1 space-y-1.5 max-h-[190px] overflow-y-auto no-scrollbar">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-full sm:w-[55%]">
+                    <ResponsiveContainer width="100%" height={190}>
+                      <PieChart>
+                        <Pie data={expenseData} dataKey="total" nameKey="category_name"
+                          innerRadius={45} outerRadius={80} paddingAngle={2}>
+                          {expenseData.map((e) => <Cell key={e.category_name} fill={e.color} />)}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{ background: '#0B1220', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, fontSize: 12 }}
+                          formatter={(v: number) => formatMoney(v, currency)}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="w-full sm:w-auto sm:flex-1 space-y-1.5 max-h-[190px] overflow-y-auto no-scrollbar">
                     {expenseData.slice(0, 8).map((e) => (
                       <div key={e.category_name} className="flex items-center gap-2 text-[11px]">
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: e.color }} />

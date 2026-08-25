@@ -66,7 +66,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 py-12 relative"
+    <div className="min-h-screen flex items-center justify-center px-5 sm:px-6 py-12 relative overflow-x-hidden"
       style={{ background: '#04081A' }}>
       <div className="absolute inset-0 dot-grid opacity-20 pointer-events-none" />
       <div className="absolute top-1/3 left-1/4 w-64 h-64 rounded-full blur-[100px] opacity-10 pointer-events-none"
@@ -113,7 +113,7 @@ export default function SignupPage() {
         </AnimatePresence>
 
         {confirmSent ? (
-          <div className="glass-blue rounded-2xl p-7 text-center">
+          <div className="glass-blue rounded-2xl p-5 sm:p-7 text-center">
             <div className="w-12 h-12 rounded-2xl mx-auto mb-4 flex items-center justify-center"
               style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.25)' }}>
               <Check className="w-6 h-6 text-green-400" />
@@ -129,7 +129,7 @@ export default function SignupPage() {
             </Link>
           </div>
         ) : (
-        <div className="glass-blue rounded-2xl p-7">
+        <div className="glass-blue rounded-2xl p-5 sm:p-7">
           {step === 0 && (
             <motion.div key="s0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
               <h2 className="text-xl font-black text-white mb-1">Set up your agency</h2>

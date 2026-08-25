@@ -126,7 +126,7 @@ function Modal({
       onClick={onClose}
     >
       <div
-        className={`glass-blue rounded-2xl p-6 w-full ${maxWidth} max-h-[90vh] overflow-y-auto`}
+        className={`glass-blue rounded-2xl p-6 w-full ${maxWidth} max-h-[90dvh] overflow-y-auto`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
@@ -702,13 +702,28 @@ function AssignClientsModal({
   onClose: () => void
   onSaved: () => void
 }) {
-  const initial = useMemo(
-    () => new Set(clients.filter((c) => c.accountManagerId === user.id).map((c) => c.id)),
-    [clients, user.id]
-  )
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(initial))
+  // Scope assignments live in the user_clients junction (migration 010) —
+  // multiple users can share a client, and 'assigned'-scope roles only see
+  // the clients selected here (plus project-team membership).
+  const { user: actor } = useAuth()
+  const [initial, setInitial] = useState<Set<string> | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    userService.listUserClientIds(user.id)
+      .then((ids) => {
+        if (cancelled) return
+        setInitial(new Set(ids))
+        setSelected(new Set(ids))
+      })
+      .catch((e) => {
+        if (!cancelled) setErr(e instanceof Error ? e.message : 'Could not load current assignments.')
+      })
+    return () => { cancelled = true }
+  }, [user.id])
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -720,6 +735,7 @@ function AssignClientsModal({
   }
 
   const submit = async () => {
+    if (!initial) return
     setSaving(true); setErr('')
     try {
       const ops: Promise<void>[] = []
@@ -727,7 +743,7 @@ function AssignClientsModal({
         const was = initial.has(c.id)
         const now = selected.has(c.id)
         if (was === now) continue
-        ops.push(userService.assignClient(c.id, now ? user.id : null))
+        ops.push(userService.setUserClientAssignment(user.id, c.id, now, actor?.id))
       }
       await Promise.all(ops)
       onSaved()
@@ -741,38 +757,41 @@ function AssignClientsModal({
     <Modal title="Assign clients" onClose={onClose}>
       <FormError message={err} />
       <p className="text-xs text-slate-400 mb-4">
-        Clients managed by <span className="text-white font-semibold">{user.full_name || user.email}</span> as account manager.
+        Clients <span className="text-white font-semibold">{user.full_name || user.email}</span> can
+        access. Roles with <span className="text-slate-300">assigned</span> scope see only these
+        clients (plus projects they're on the team of); agency-wide roles are unaffected.
       </p>
       {clients.length === 0 ? (
-        <EmptyState icon="🏢" title="No clients yet." description="Create a client first, then assign a manager." />
+        <EmptyState icon="🏢" title="No clients yet." description="Create a client first, then assign access." />
+      ) : initial === null ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+        </div>
       ) : (
         <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
-          {clients.map((c) => {
-            const managedByOther = !!c.accountManagerId && c.accountManagerId !== user.id
-            return (
-              <label
-                key={c.id}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/[0.03] cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  className="accent-blue-500"
-                  checked={selected.has(c.id)}
-                  onChange={() => toggle(c.id)}
-                />
-                <span className="text-sm text-white flex-1 truncate">{c.name}</span>
-                {managedByOther && !selected.has(c.id) && (
-                  <span className="text-[10px] text-amber-400/80">has another manager</span>
-                )}
-              </label>
-            )
-          })}
+          {clients.map((c) => (
+            <label
+              key={c.id}
+              className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/[0.03] cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                className="accent-blue-500"
+                checked={selected.has(c.id)}
+                onChange={() => toggle(c.id)}
+              />
+              <span className="text-sm text-white flex-1 truncate">{c.name}</span>
+              {c.accountManagerId === user.id && (
+                <span className="text-[10px] text-blue-400/80">account manager</span>
+              )}
+            </label>
+          ))}
         </div>
       )}
       <div className="flex gap-3 mt-5">
         <button className="btn-secondary flex-1 justify-center py-2.5 text-sm" onClick={onClose}>Cancel</button>
         <button className="btn-primary flex-1 justify-center py-2.5 text-sm" onClick={submit}
-          disabled={saving || clients.length === 0}>
+          disabled={saving || clients.length === 0 || initial === null}>
           {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
@@ -980,7 +999,7 @@ function OverridesModal({
                   const state = stateOf(p.key)
                   return (
                     <div key={p.key}
-                      className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/[0.02]">
+                      className="flex flex-wrap items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/[0.02]">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-white">{p.key}</span>
@@ -1142,7 +1161,7 @@ function InviteModal({
           <input className="input py-2 text-sm" value={fullName}
             onChange={(e) => setFullName(e.target.value)} placeholder="Jane Doe" />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Role *">
             <select className="input py-2 text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
               <option value="">Select a role…</option>

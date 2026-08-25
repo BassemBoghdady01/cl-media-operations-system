@@ -112,7 +112,7 @@ export default function ApprovalsPage() {
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard label="Awaiting decision" value={String(rows.length)} color="#FBBF24" emphasis />
             {totals.map(([currency, total]) => (
               <KpiCard key={currency} label={`Pending amount (${currency})`}
@@ -205,7 +205,7 @@ export default function ApprovalsPage() {
       {rejecting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setRejecting(null)}>
-          <div className="glass-blue rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+          <div className="glass-blue rounded-2xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-bold text-white mb-1">Reject expense</h3>
             <p className="text-xs text-slate-400 mb-4">
               {rejecting.title} — {formatMoney(Number(rejecting.amount), rejecting.currency)}

@@ -12,7 +12,7 @@ import { ShieldCheck, Lock } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { FinancePageHeader, Panel, FinanceSkeleton, EmptyState } from '../../components/finance/FinanceKit'
-import { ROLE_LABELS, ROLES, normalizeRole } from '../../config/roles'
+import { ROLE_LABELS, ROLES, ROLE_SCOPES, SCOPE_LABELS, normalizeRole } from '../../config/roles'
 import {
   userService,
   type RoleRow, type PermissionRow, type RolePermissionRow,
@@ -47,10 +47,12 @@ const key2 = (roleKey: string, permKey: string) => `${roleKey}::${permKey}`
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function RolesPage() {
-  const { role: authRole } = useAuth()
+  const { role: authRole, user: authUser, agency } = useAuth()
   const isSuperAdmin = authRole === ROLES.SUPER_ADMIN
+  const agencyId = authUser?.agencyId || agency?.id || ''
 
   const [roles, setRoles] = useState<RoleRow[]>([])
+  const [memberCounts, setMemberCounts] = useState<Map<string, number>>(new Map())
   const [permissions, setPermissions] = useState<PermissionRow[]>([])
   const [granted, setGranted] = useState<Set<string>>(new Set())
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
@@ -72,13 +74,26 @@ export default function RolesPage() {
       setPermissions(p)
       setGranted(new Set(rp.map((row: RolePermissionRow) => key2(row.role_key, row.permission_key))))
       setSelectedKey((prev) => prev ?? r[0]?.key ?? null)
+
+      // Member counts per role — best-effort; the matrix works without them.
+      if (agencyId) {
+        try {
+          const users = await userService.listUsers(agencyId)
+          const counts = new Map<string, number>()
+          for (const u of users) {
+            const n = normalizeRole(u.role) ?? u.role
+            counts.set(n, (counts.get(n) ?? 0) + 1)
+          }
+          setMemberCounts(counts)
+        } catch { /* counts are cosmetic */ }
+      }
     } catch (err) {
       console.error('[RolesPage] load failed', err)
       setError(err instanceof Error ? err.message : 'Could not load roles.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [agencyId])
 
   useEffect(() => { load() }, [load])
 
@@ -196,7 +211,7 @@ export default function RolesPage() {
                       <span className="text-sm font-semibold truncate">{roleLabelOf(r)}</span>
                       <span className="text-[10px] text-slate-500 shrink-0">L{r.level}</span>
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       {r.is_system && (
                         <span className="inline-flex items-center gap-1 text-[10px] text-blue-400" title="System role — part of the core setup">
                           <ShieldCheck className="w-3 h-3" /> System role
@@ -204,6 +219,27 @@ export default function RolesPage() {
                       )}
                       {!r.is_internal && (
                         <span className="text-[10px] text-slate-500">External</span>
+                      )}
+                      {(() => {
+                        const n = normalizeRole(r.key)
+                        const scope = n ? ROLE_SCOPES[n] : 'agency'
+                        return (
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded-md"
+                            title={`Data scope: ${SCOPE_LABELS[scope]}`}
+                            style={{
+                              color: scope === 'agency' ? '#34D399' : scope === 'assigned' ? '#FBBF24' : '#94A3B8',
+                              background: 'rgba(255,255,255,0.05)',
+                            }}
+                          >
+                            {scope === 'agency' ? 'Agency-wide' : scope === 'assigned' ? 'Assigned only' : 'Own data'}
+                          </span>
+                        )
+                      })()}
+                      {(memberCounts.get(normalizeRole(r.key) ?? r.key) ?? 0) > 0 && (
+                        <span className="text-[10px] text-slate-500">
+                          {memberCounts.get(normalizeRole(r.key) ?? r.key)} user{(memberCounts.get(normalizeRole(r.key) ?? r.key) ?? 0) === 1 ? '' : 's'}
+                        </span>
                       )}
                     </div>
                     {r.description && (

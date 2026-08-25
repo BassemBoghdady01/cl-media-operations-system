@@ -76,14 +76,16 @@ export default function ClientCalendar() {
       {/* Month nav */}
       <div className="flex items-center justify-between mb-5">
         <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all">
+          aria-label="Previous month"
+          className="w-10 h-10 lg:w-8 lg:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all">
           ‹
         </button>
         <h2 className="text-base font-bold text-white">
           {format(currentMonth, 'MMMM yyyy')}
         </h2>
         <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all">
+          aria-label="Next month"
+          className="w-10 h-10 lg:w-8 lg:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all">
           ›
         </button>
       </div>
@@ -94,9 +96,12 @@ export default function ClientCalendar() {
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-          {/* Calendar grid */}
+          {/* Calendar grid — scrolls horizontally inside its own container below ~560px
+              so day cells never collapse; desktop is wider than the min-w and is unaffected. */}
           <div className="rounded-2xl overflow-hidden"
             style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="overflow-x-auto">
+            <div className="min-w-[560px]">
             {/* Day headers */}
             <div className="grid grid-cols-7">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
@@ -151,6 +156,8 @@ export default function ClientCalendar() {
                   </button>
                 )
               })}
+            </div>
+            </div>
             </div>
           </div>
 

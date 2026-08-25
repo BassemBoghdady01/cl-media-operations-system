@@ -129,7 +129,7 @@ export default function AuditLogPage() {
       />
 
       <Panel className="mb-5">
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           <input className="input text-xs py-2" placeholder="User email…"
             value={actorEmail} onChange={(e) => setActorEmail(e.target.value)} />
           <select className="input text-xs py-2" value={entityType} onChange={(e) => setEntityType(e.target.value)}>

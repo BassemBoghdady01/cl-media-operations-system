@@ -122,6 +122,20 @@ export default function FinanceSettingsPage() {
           <Panel><FinanceSkeleton rows={3} /></Panel>
         </div>
       ) : (
+        <>
+        {/* ── Mobile section nav (horizontal scroll below xl) ── */}
+        <nav className="xl:hidden flex gap-1 overflow-x-auto no-scrollbar whitespace-nowrap mb-4 -mx-1 px-1">
+          {SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => scrollTo(s.id)}
+              className="flex-shrink-0 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white bg-white/[0.03] transition-colors"
+            >
+              {s.label}
+            </button>
+          ))}
+        </nav>
+
         <div className="flex gap-6 items-start">
           {/* ── Section nav ── */}
           <nav className="hidden xl:block w-48 flex-shrink-0">
@@ -408,6 +422,7 @@ export default function FinanceSettingsPage() {
             </section>
           </div>
         </div>
+        </>
       )}
 
       {/* ── Modals ── */}
@@ -803,7 +818,7 @@ function AccountFormModal({
             onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
             placeholder="CIB business account" />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Type">
             <select className="input py-2 text-sm" value={f.type}
               onChange={(e) => setF((p) => ({ ...p, type: e.target.value }))}>
@@ -883,7 +898,7 @@ function CategoryFormModal({
             onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
             placeholder={f.kind === 'expense' ? 'Software & tools' : 'Retainers'} />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Kind">
             <select className="input py-2 text-sm" value={f.kind}
               onChange={(e) => setF((p) => ({ ...p, kind: e.target.value as FinanceCategory['kind'] }))}>
@@ -997,7 +1012,7 @@ function ServiceFormModal({
             onChange={(e) => setF((p) => ({ ...p, category: e.target.value }))}
             placeholder="Retainer, Production, Media buying…" />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Default price" hint="Optional — used as a starting point when billing.">
             <input className="input py-2 text-sm" type="number" min="0" step="0.01"
               value={f.default_price}
@@ -1102,7 +1117,7 @@ function RecurringFormModal({
           <input className="input py-2 text-sm" value={f.vendor}
             onChange={(e) => set('vendor', e.target.value)} placeholder="Landlord / supplier name" />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Amount *">
             <input className="input py-2 text-sm" type="number" min="0" step="0.01"
               value={f.amount} onChange={(e) => set('amount', e.target.value)} placeholder="0.00" />
@@ -1114,7 +1129,7 @@ function RecurringFormModal({
             </select>
           </Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Frequency">
             <select className="input py-2 text-sm" value={f.frequency}
               onChange={(e) => set('frequency', e.target.value as RecurringExpense['frequency'])}>
@@ -1130,7 +1145,7 @@ function RecurringFormModal({
             </select>
           </Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Start date *">
             <input className="input py-2 text-sm" type="date" value={f.start_date}
               onChange={(e) => set('start_date', e.target.value)} />
@@ -1140,7 +1155,7 @@ function RecurringFormModal({
               onChange={(e) => set('next_due_date', e.target.value)} />
           </Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Category">
             <select className="input py-2 text-sm" value={f.category_id}
               onChange={(e) => set('category_id', e.target.value)}>
@@ -1156,7 +1171,7 @@ function RecurringFormModal({
             </select>
           </Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Reminder days before due">
             <input className="input py-2 text-sm" type="number" min="0" step="1"
               value={f.reminder_days_before}
@@ -1194,7 +1209,7 @@ function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(4,8,26,0.8)', backdropFilter: 'blur(4px)' }} onClick={onClose}>
-      <div className={`glass-blue rounded-2xl p-6 w-full ${wide ? 'max-w-lg' : 'max-w-md'} max-h-[90vh] overflow-y-auto`}
+      <div className={`glass-blue rounded-2xl p-6 w-full ${wide ? 'max-w-lg' : 'max-w-md'} max-h-[90dvh] overflow-y-auto`}
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-black text-white">{title}</h2>
@@ -1248,7 +1263,7 @@ function ConfirmDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(4,8,26,0.8)', backdropFilter: 'blur(4px)' }} onClick={onClose}>
-      <div className="glass-blue rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+      <div className="glass-blue rounded-2xl p-6 w-full max-w-sm max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-base font-black text-white mb-2">{title}</h2>
         <p className="text-xs text-slate-400 mb-4">{message}</p>
         {err && <ErrBox text={err} />}

@@ -45,7 +45,7 @@ export function Panel({
   return (
     <div className={`glass-blue rounded-2xl p-5 ${className}`}>
       {(title || action) && (
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           {title && <h2 className="text-sm font-bold text-white">{title}</h2>}
           {action}
         </div>
@@ -150,7 +150,7 @@ export function CurrencyTabs({
 }) {
   if (currencies.length <= 1) return null
   return (
-    <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)' }}>
+    <div className="flex flex-wrap gap-1 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)' }}>
       {currencies.map((c) => (
         <button
           key={c}
@@ -181,7 +181,7 @@ export function FinanceSkeleton({ rows = 4 }: { rows?: number }) {
 
 export function KpiSkeleton({ count = 4 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="h-24 rounded-2xl" style={{ background: 'rgba(255,255,255,0.03)' }} />
       ))}

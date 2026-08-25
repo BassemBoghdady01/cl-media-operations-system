@@ -291,7 +291,7 @@ export default function OnboardingPage() {
                 const Icon = step.icon
                 const complete = step.done || step.skipped
                 return (
-                  <div key={step.key} className="py-3.5 first:pt-0 last:pb-0 flex items-start gap-3">
+                  <div key={step.key} className="py-3.5 first:pt-0 last:pb-0 flex flex-wrap items-start gap-3">
                     <div
                       className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
                       style={{

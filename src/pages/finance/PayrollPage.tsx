@@ -431,7 +431,7 @@ export default function PayrollPage() {
           ) : (
             <>
               {/* KPI row */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {netByCurrency.length > 1 ? (
                   netByCurrency.map(([cur, total]) => (
                     <KpiCard key={cur} label={`Net pay (${cur})`} value={formatMoney(total, cur)} color="#10B981" emphasis />
@@ -760,7 +760,7 @@ function CompensationModal({
       style={{ background: 'rgba(4,8,26,0.8)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}
     >
-      <div className="glass-blue rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="glass-blue rounded-2xl p-6 w-full max-w-lg max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-black text-white">
             {existing ? 'Edit compensation' : 'Add compensation'}
@@ -807,7 +807,7 @@ function CompensationModal({
             )}
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Base salary *">
               <input
                 className="input py-2 text-sm" type="number" min="0" step="0.01"
@@ -821,7 +821,7 @@ function CompensationModal({
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Employment type">
               <select
                 className="input py-2 text-sm"
@@ -839,7 +839,7 @@ function CompensationModal({
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Default allowances">
               <input
                 className="input py-2 text-sm" type="number" min="0" step="0.01"
@@ -854,7 +854,7 @@ function CompensationModal({
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Effective from">
               <input
                 className="input py-2 text-sm" type="date"
@@ -941,7 +941,7 @@ function MarkPaidModal({
       style={{ background: 'rgba(4,8,26,0.8)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}
     >
-      <div className="glass-blue rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+      <div className="glass-blue rounded-2xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-black text-white">Mark payroll as paid</h2>
           <button onClick={onClose} className="text-slate-500 hover:text-white"><X className="w-4 h-4" /></button>

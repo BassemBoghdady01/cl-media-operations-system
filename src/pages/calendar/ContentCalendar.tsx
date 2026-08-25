@@ -94,7 +94,7 @@ function SchedulePostModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto">
 
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-black text-white">Schedule Post</h2>
@@ -118,7 +118,7 @@ function SchedulePostModal({
             <input className="input py-2 text-xs mt-1" placeholder="What's being posted?"
               value={form.title} onChange={(e) => set({ title: e.target.value })} />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide">Platform</label>
               <select className="input py-2 text-xs mt-1 capitalize" value={form.platform}
@@ -385,7 +385,7 @@ export default function ContentCalendar() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 lg:p-8">
+      className="p-4 sm:p-6 lg:p-8">
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
@@ -395,7 +395,7 @@ export default function ContentCalendar() {
             {loading ? 'Loading schedule…' : `${entries.length} items scheduled or ready to post`}
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
             {(['month', 'week'] as const).map((v) => (
               <button key={v}
@@ -458,6 +458,8 @@ export default function ContentCalendar() {
                   </button>
                 </div>
 
+                <div className="overflow-x-auto">
+                  <div className="min-w-[640px]">
                 {/* Day headers */}
                 <div className="grid grid-cols-7 mb-2">
                   {DAY_NAMES.map((d) => (
@@ -478,6 +480,8 @@ export default function ContentCalendar() {
                     {weekDays.map((d) => renderDayCell(toDateStr(d), d.getDate(), toDateStr(d), 'min-h-[160px]', 6))}
                   </div>
                 )}
+                  </div>
+                </div>
               </div>
 
               {/* Selected day detail */}

@@ -142,7 +142,7 @@ function NewVideoModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-blue rounded-3xl p-6 w-full max-w-md">
+        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto">
 
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-black text-white">New Video</h2>
@@ -166,7 +166,7 @@ function NewVideoModal({
             <input className="input py-2 text-xs mt-1" placeholder="Video title"
               value={form.title} onChange={(e) => set({ title: e.target.value })} />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide">Platform</label>
               <select className="input py-2 text-xs mt-1" value={form.platform}
@@ -182,7 +182,7 @@ function NewVideoModal({
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide">Priority</label>
               <select className="input py-2 text-xs mt-1" value={form.priority}
@@ -350,7 +350,7 @@ export default function VideoPipeline() {
 
   if (error) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <PageErrorState
           title="We couldn't load the video pipeline"
           message={error}
@@ -364,7 +364,7 @@ export default function VideoPipeline() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 lg:p-8">
+      className="p-4 sm:p-6 lg:p-8">
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
@@ -374,7 +374,7 @@ export default function VideoPipeline() {
             {videos.length} videos · {videos.filter((v) => v.priority === 'urgent').length} urgent
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
             {(['board', 'list'] as const).map((v) => (
               <button key={v} onClick={() => setView(v)}
@@ -394,9 +394,9 @@ export default function VideoPipeline() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6">
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-          <input className="input pl-9 py-2 text-xs w-56" placeholder="Search videos…"
+          <input className="input pl-9 py-2 text-xs w-full sm:w-56" placeholder="Search videos…"
             value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select className="input py-2 text-xs w-auto" value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>

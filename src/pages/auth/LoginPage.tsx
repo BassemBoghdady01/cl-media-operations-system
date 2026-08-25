@@ -33,8 +33,10 @@ export default function LoginPage() {
     <div className="min-h-screen flex" style={{ background: '#04081A' }}>
 
       {/* Left panel — Form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 relative">
-        <div className="absolute inset-0 pointer-events-none">
+      <div className="flex-1 flex items-center justify-center px-5 sm:px-6 py-12 relative">
+        {/* overflow-hidden: the blur circles extend past 320px viewports and would
+            otherwise create horizontal body scroll. Purely decorative — safe to clip. */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="absolute top-1/4 left-1/4 w-72 h-72 rounded-full blur-[100px] opacity-10"
             style={{ background: 'radial-gradient(circle, #3B82F6, transparent)' }} />
           <div className="absolute bottom-1/4 right-1/4 w-56 h-56 rounded-full blur-[80px] opacity-8"
@@ -113,7 +115,8 @@ export default function LoginPage() {
                 />
                 <button type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-400">
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-2.5 text-slate-500 hover:text-slate-400">
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>

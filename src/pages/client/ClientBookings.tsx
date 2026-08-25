@@ -112,8 +112,8 @@ function BookingCard({ booking, index }: { booking: Booking; index: number }) {
       transition={{ delay: index * 0.05 }}
       className="rounded-2xl p-5"
       style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <div className="flex items-start justify-between mb-4">
-        <div>
+      <div className="flex items-start justify-between gap-2 flex-wrap mb-4">
+        <div className="min-w-0">
           <div className="text-base font-bold text-white">{booking.studio ?? 'Shoot Session'}</div>
           <div className="flex items-center gap-1.5 mt-1">
             <Camera className="w-3 h-3 text-slate-500" />
@@ -122,13 +122,13 @@ function BookingCard({ booking, index }: { booking: Booking; index: number }) {
             </span>
           </div>
         </div>
-        <span className="px-2.5 py-1 rounded-lg text-[11px] font-semibold"
+        <span className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex-shrink-0 whitespace-nowrap"
           style={{ background: status.bg, color: status.color }}>
           {status.label}
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-4 text-xs text-slate-400">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mb-4 text-xs text-slate-400">
         {booking.location && (
           <div className="flex items-center gap-1.5">
             <MapPin className="w-3 h-3 text-slate-600" />

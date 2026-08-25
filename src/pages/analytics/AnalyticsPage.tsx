@@ -277,7 +277,7 @@ export default function AnalyticsPage() {
 
   if (error) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <PageErrorState
           title="We couldn't load analytics"
           message={error}
@@ -291,7 +291,7 @@ export default function AnalyticsPage() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 lg:p-8">
+      className="p-4 sm:p-6 lg:p-8">
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
@@ -317,7 +317,7 @@ export default function AnalyticsPage() {
       {!loading && (
         <>
           {/* KPI row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <KPICard icon={DollarSign} label="Monthly Recurring Revenue" value={formatCurrency(totalMRR)} color="#10B981" />
             <KPICard icon={Film} label="Videos Posted" value={postedVideos} color="#3B82F6" />
             <KPICard icon={CheckCircle} label="Approval Rate" value={approvalRate ?? '—'} suffix={approvalRate !== null ? '%' : ''} color="#8B5CF6" />

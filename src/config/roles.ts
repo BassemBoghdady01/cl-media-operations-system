@@ -94,8 +94,47 @@ export const ROLE_LABELS: Readonly<Record<UserRole, string>> = {
   video_editor: 'Video Editor',
   graphic_designer: 'Graphic Designer',
   content_creator: 'Content Creator',
-  viewer: 'Viewer (Read Only)',
+  viewer: 'Read Only',
   client: 'Client',
+}
+
+/**
+ * Data scope per role — UI mirror of roles.scope (migration 010; the database
+ * is authoritative via client_in_scope()/project_in_scope() in RLS).
+ *   agency   → sees all agency records its permissions allow
+ *   assigned → sees only assigned clients + projects they're on + own work
+ *   own      → portal client: exclusively their own client record
+ */
+export type RoleScope = 'agency' | 'assigned' | 'own'
+
+export const ROLE_SCOPES: Readonly<Record<UserRole, RoleScope>> = {
+  super_admin: 'agency',
+  agency_admin: 'agency',
+  finance_manager: 'agency',
+  hr_manager: 'agency',
+  operations: 'agency',
+  accountant: 'agency',
+  sales_manager: 'agency',
+  viewer: 'agency',
+  marketing_manager: 'assigned',
+  project_manager: 'assigned',
+  account_manager: 'assigned',
+  client_success: 'assigned',
+  content_strategist: 'assigned',
+  social_media_manager: 'assigned',
+  media_buyer: 'assigned',
+  sales: 'assigned',
+  videographer: 'assigned',
+  video_editor: 'assigned',
+  graphic_designer: 'assigned',
+  content_creator: 'assigned',
+  client: 'own',
+}
+
+export const SCOPE_LABELS: Readonly<Record<RoleScope, string>> = {
+  agency: 'Whole agency',
+  assigned: 'Assigned clients & projects only',
+  own: 'Own records only (portal)',
 }
 
 /**

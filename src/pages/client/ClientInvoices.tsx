@@ -98,7 +98,7 @@ export default function ClientInvoices() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                className="rounded-xl p-4 flex items-center gap-4"
+                className="rounded-xl p-4 flex items-center gap-3 sm:gap-4"
                 style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{ background: status.bg, color: status.color }}>
@@ -107,7 +107,7 @@ export default function ClientInvoices() {
 
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-white">{invoice.invoiceNumber}</div>
-                  <div className="flex items-center gap-3 mt-0.5">
+                  <div className="flex items-center gap-x-3 gap-y-0.5 mt-0.5 flex-wrap">
                     <span className="text-[11px] text-slate-500">
                       Issued {format(parseISO(invoice.issuedDate), 'MMM d, yyyy')}
                     </span>

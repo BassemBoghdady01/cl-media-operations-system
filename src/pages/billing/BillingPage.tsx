@@ -150,7 +150,7 @@ function NewInvoiceModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto">
 
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-black text-white">New Invoice</h2>
@@ -174,7 +174,7 @@ function NewInvoiceModal({
             <input className="input py-2 text-xs mt-1" placeholder="INV-202608-001"
               value={form.invoiceNumber} onChange={(e) => set({ invoiceNumber: e.target.value })} />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide">Amount (USD)</label>
               <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
@@ -197,7 +197,7 @@ function NewInvoiceModal({
               value={form.total}
               onChange={(e) => { setTotalEdited(true); set({ total: e.target.value }) }} />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide">Due Date</label>
               <input type="date" className="input py-2 text-xs mt-1" value={form.dueDate}
@@ -365,7 +365,7 @@ export default function BillingPage() {
 
   if (error) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <PageErrorState
           title="We couldn't load your invoices"
           message={error}
@@ -379,7 +379,7 @@ export default function BillingPage() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 lg:p-8">
+      className="p-4 sm:p-6 lg:p-8">
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
@@ -406,7 +406,7 @@ export default function BillingPage() {
       {!loading && (
         <>
           {/* KPI row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {[
               { icon: CheckCircle, label: 'Collected', value: formatCurrency(totalPaid), color: '#10B981', sub: `${paidInvoices.length} invoices` },
               { icon: Clock, label: 'Pending Payment', value: formatCurrency(totalPending), color: '#3B82F6', sub: `${sentInvoices.length} outstanding` },

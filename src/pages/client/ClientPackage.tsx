@@ -126,7 +126,7 @@ export default function ClientPackage() {
         )}
 
         {pkg.platforms && pkg.platforms.length > 0 && (
-          <div className="flex gap-2 mt-3">
+          <div className="flex flex-wrap gap-2 mt-3">
             {pkg.platforms.map((p) => (
               <span key={p} className="px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-400 capitalize"
                 style={{ background: 'rgba(255,255,255,0.06)' }}>

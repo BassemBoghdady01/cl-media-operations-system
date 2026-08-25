@@ -127,7 +127,7 @@ function AddTaskModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-blue rounded-3xl p-6 w-full max-w-md">
+        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto">
 
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-black text-white">New Task</h2>
@@ -148,7 +148,7 @@ function AddTaskModal({
             <textarea className="input py-2 text-xs mt-1 min-h-[64px]" placeholder="Add details…"
               value={form.description} onChange={(e) => set({ description: e.target.value })} />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide">Assignee (optional)</label>
               <select className="input py-2 text-xs mt-1" value={form.assignedTo}
@@ -166,7 +166,7 @@ function AddTaskModal({
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide">Priority</label>
               <select className="input py-2 text-xs mt-1" value={form.priority}
@@ -328,7 +328,7 @@ export default function TasksPage() {
 
   if (error) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <PageErrorState
           title="We couldn't load your tasks"
           message={error}
@@ -342,7 +342,7 @@ export default function TasksPage() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 lg:p-8">
+      className="p-4 sm:p-6 lg:p-8">
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
@@ -350,7 +350,7 @@ export default function TasksPage() {
           <h1 className="text-2xl font-black text-white">Tasks</h1>
           <p className="text-slate-400 text-sm mt-1">{tasks.length} total · {done} done · {urgent} urgent · {overdue} overdue</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
             {(['board', 'list'] as const).map((v) => (
               <button key={v} onClick={() => setView(v)}
@@ -384,9 +384,9 @@ export default function TasksPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-5">
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-          <input className="input pl-9 py-2 text-xs w-56" placeholder="Search tasks…"
+          <input className="input pl-9 py-2 text-xs w-full sm:w-56" placeholder="Search tasks…"
             value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select className="input py-2 text-xs w-auto" value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>

@@ -88,7 +88,7 @@ export default function ClientAssets() {
               <button
                 key={folder}
                 onClick={() => setActiveFolder(folder)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all capitalize ${
+                className={`px-3 py-1.5 min-h-[40px] lg:min-h-0 rounded-lg text-xs font-medium transition-all capitalize ${
                   activeFolder === folder
                     ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                     : 'text-slate-500 hover:text-slate-300 border border-transparent'
@@ -130,7 +130,7 @@ export default function ClientAssets() {
                     target="_blank"
                     rel="noopener noreferrer"
                     title={`Download ${asset.name}`}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100"
+                    className="w-10 h-10 lg:w-7 lg:h-7 flex-shrink-0 rounded-lg flex items-center justify-center text-slate-600 hover:text-blue-400 transition-colors opacity-100 lg:opacity-0 group-hover:opacity-100"
                     style={{ background: 'rgba(255,255,255,0.05)' }}>
                     <Download className="w-3.5 h-3.5" />
                   </a>

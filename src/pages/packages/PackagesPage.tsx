@@ -148,7 +148,7 @@ function NewPackageModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto">
 
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-black text-white">New Package</h2>
@@ -177,7 +177,7 @@ function NewPackageModal({
             <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
               value={form.monthlyPrice} onChange={(e) => set({ monthlyPrice: e.target.value })} />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide">Videos</label>
               <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
@@ -315,7 +315,7 @@ export default function PackagesPage() {
 
   if (error) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <PageErrorState
           title="We couldn't load your packages"
           message={error}
@@ -329,7 +329,7 @@ export default function PackagesPage() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 lg:p-8">
+      className="p-4 sm:p-6 lg:p-8">
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
@@ -354,7 +354,7 @@ export default function PackagesPage() {
       {!loading && (
         <>
           {/* KPI row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {[
               { icon: TrendingUp, label: 'Monthly Recurring Revenue', value: formatCurrency(totalMRR), color: '#10B981' },
               { icon: Package, label: 'Active Packages', value: activePackages.length, color: '#3B82F6' },

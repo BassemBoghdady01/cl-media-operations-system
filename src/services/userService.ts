@@ -207,15 +207,44 @@ export const userService = {
     orThrow('userService.clearUserOverride', error)
   },
 
-  // ── Client / project assignment ──
-  /** Clients whose account manager is this user. */
-  listAssignedClients: async (userId: string): Promise<{ id: string; name: string }[]> => {
+  // ── Client / project assignment (data SCOPE — migration 010) ──
+  /** Client ids assigned to this user via the user_clients junction. */
+  listUserClientIds: async (userId: string): Promise<string[]> => {
     const { data, error } = await db()
-      .from('clients').select('id, name').eq('assigned_manager_id', userId).order('name')
-    orThrow('userService.listAssignedClients', error)
-    return (data ?? []) as { id: string; name: string }[]
+      .from('user_clients').select('client_id').eq('user_id', userId)
+    orThrow('userService.listUserClientIds', error)
+    return ((data ?? []) as Row[]).map((r) => String(r.client_id))
   },
 
+  /** Assign / unassign one client for a user (drives assigned-scope access). */
+  setUserClientAssignment: async (
+    userId: string, clientId: string, assigned: boolean, assignedBy?: string
+  ): Promise<void> => {
+    if (assigned) {
+      const { error } = await db()
+        .from('user_clients')
+        .upsert({ user_id: userId, client_id: clientId, assigned_by: assignedBy ?? null })
+      orThrow('userService.setUserClientAssignment(add)', error)
+    } else {
+      const { error } = await db()
+        .from('user_clients').delete()
+        .eq('user_id', userId).eq('client_id', clientId)
+      orThrow('userService.setUserClientAssignment(remove)', error)
+    }
+  },
+
+  /** Clients assigned to this user (junction), with names. */
+  listAssignedClients: async (userId: string): Promise<{ id: string; name: string }[]> => {
+    const { data, error } = await db()
+      .from('user_clients').select('client_id, clients(name)').eq('user_id', userId)
+    orThrow('userService.listAssignedClients', error)
+    return ((data ?? []) as Row[]).map((r) => ({
+      id: String(r.client_id),
+      name: String(r.clients?.name ?? ''),
+    }))
+  },
+
+  /** Set the ACCOUNT MANAGER on the client record (also feeds scope). */
   assignClient: async (clientId: string, userId: string | null): Promise<void> => {
     const { error } = await db()
       .from('clients').update({ assigned_manager_id: userId }).eq('id', clientId)

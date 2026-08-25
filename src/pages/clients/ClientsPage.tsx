@@ -100,7 +100,7 @@ export default function ClientsPage() {
 
   if (error) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <PageErrorState
           title="We couldn't load your clients"
           message={error}
@@ -114,7 +114,7 @@ export default function ClientsPage() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 lg:p-8">
+      className="p-4 sm:p-6 lg:p-8">
 
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4 mb-8">
@@ -130,7 +130,7 @@ export default function ClientsPage() {
       </div>
 
       {/* Quick stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'Active Clients', value: activeCount, icon: Users, color: '#3B82F6' },
           { label: 'Total Videos This Month', value: videosThisMonth, icon: Film, color: '#8B5CF6' },
@@ -234,7 +234,7 @@ export default function ClientsPage() {
                   </div>
 
                   {/* Stats row */}
-                  <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                     <div className="text-center">
                       <div className="text-base font-black text-white">{videoCount}</div>
                       <div className="text-[10px] text-slate-500">Videos</div>
@@ -363,7 +363,7 @@ export function ClientFormModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
       style={{ background: 'rgba(0,0,0,0.65)' }} onClick={onClose}>
-      <div className="glass-blue rounded-2xl p-6 w-full max-w-lg my-8" onClick={(e) => e.stopPropagation()}>
+      <div className="glass-blue rounded-2xl p-6 w-full max-w-lg my-8 max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-sm font-bold text-white">{existing ? 'Edit client' : 'Add client'}</h3>
           <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">

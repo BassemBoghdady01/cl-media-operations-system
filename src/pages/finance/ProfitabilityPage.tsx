@@ -87,7 +87,7 @@ export default function ProfitabilityPage() {
         )}
       </FinancePageHeader>
 
-      <div className="flex gap-1 p-1 rounded-xl mb-5 w-fit" style={{ background: 'rgba(255,255,255,0.04)' }}>
+      <div className="flex flex-wrap gap-1 p-1 rounded-xl mb-5 w-fit" style={{ background: 'rgba(255,255,255,0.04)' }}>
         {(['clients', 'projects', 'services'] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${

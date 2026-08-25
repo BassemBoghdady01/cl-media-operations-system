@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Film, Calendar, Package, CreditCard, FolderOpen, Camera,
@@ -24,8 +24,15 @@ const clientNav = [
 export default function ClientLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
   const { unread } = useNotifications()
+
+  // Close the mobile drawer on ANY route change (bell button, back/forward, deep links),
+  // not only when a drawer nav item is tapped.
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [location.pathname])
 
   const NavItems = () => (
     <>
@@ -94,11 +101,11 @@ export default function ClientLayout() {
         {/* Right: Notif + User */}
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/client/finance')}
-            className="relative w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/[0.06] transition-colors"
+            className="relative w-10 h-10 lg:w-8 lg:h-8 rounded-xl flex items-center justify-center hover:bg-white/[0.06] transition-colors"
             style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
             <Bell className="w-4 h-4 text-slate-400" />
             {unread > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
                 style={{ background: '#EF4444' }}>{unread}</span>
             )}
           </button>
@@ -110,14 +117,15 @@ export default function ClientLayout() {
             </div>
             <button
               onClick={() => { logout(); navigate('/login') }}
-              className="text-slate-600 hover:text-red-400 transition-colors">
+              className="w-10 h-10 lg:w-auto lg:h-auto flex items-center justify-center text-slate-600 hover:text-red-400 transition-colors">
               <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
 
           {/* Mobile menu toggle */}
           <button onClick={() => setMobileOpen(!mobileOpen)}
-            className="lg:hidden w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/[0.06] transition-colors">
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            className="lg:hidden w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white/[0.06] transition-colors">
             {mobileOpen ? <X className="w-4 h-4 text-slate-400" /> : <Menu className="w-4 h-4 text-slate-400" />}
           </button>
         </div>
@@ -130,9 +138,12 @@ export default function ClientLayout() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="lg:hidden px-4 py-3 space-y-1 overflow-hidden"
+            className="lg:hidden overflow-hidden"
             style={{ background: 'rgba(4,8,26,0.96)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <NavItems />
+            {/* Inner wrapper scrolls if the list is taller than the viewport (small landscape phones) */}
+            <div className="px-4 py-3 space-y-1 max-h-[calc(100dvh-5rem)] overflow-y-auto">
+              <NavItems />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

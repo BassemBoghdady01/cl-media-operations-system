@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, Plus } from 'lucide-react'
+import { Search, Bell, Plus, Menu } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { timeAgo, getInitials } from '../../lib/utils'
 import { useNotifications } from '../../hooks/useNotifications'
@@ -48,7 +48,7 @@ const notifIcons: Record<string, string> = {
   posted: '🚀',
 }
 
-export default function Navbar() {
+export default function Navbar({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, hasPermission } = useAuth()
@@ -64,8 +64,17 @@ export default function Navbar() {
   const { title, subtitle } = (pathKey ? pageTitles[pathKey] : undefined) ?? { title: 'EZ Marketing Agency', subtitle: '' }
 
   return (
-    <header className="h-16 flex items-center px-6 gap-4 flex-shrink-0"
+    <header className="h-16 flex items-center px-4 sm:px-6 gap-3 sm:gap-4 flex-shrink-0"
       style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(4,8,26,0.85)', backdropFilter: 'blur(12px)' }}>
+
+      {/* Mobile menu (hamburger) — opens the off-canvas sidebar */}
+      <button
+        onClick={onOpenMobileNav}
+        aria-label="Open navigation"
+        className="lg:hidden w-10 h-10 -ml-1 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors hover:bg-white/[0.06]"
+        style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+        <Menu className="w-4.5 h-4.5 text-slate-300" />
+      </button>
 
       {/* Page title */}
       <div className="flex-1 min-w-0">

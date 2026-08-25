@@ -74,7 +74,13 @@ const navGroups: {
   },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({
+  mobileOpen = false,
+  onCloseMobile = () => {},
+}: {
+  mobileOpen?: boolean
+  onCloseMobile?: () => void
+}) {
   const { user, role, logout, hasPermission } = useAuth()
   const navigate = useNavigate()
   const { unread } = useNotifications()
@@ -84,8 +90,11 @@ export default function Sidebar() {
     .filter((g) => g.items.length > 0)
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[220px] flex flex-col z-40"
-      style={{ background: 'rgba(4,8,26,0.97)', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+    <aside
+      className={`fixed left-0 top-0 h-screen w-[260px] lg:w-[220px] flex flex-col z-50 lg:z-40
+        transform transition-transform duration-300 ease-out
+        lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
+      style={{ background: 'rgba(4,8,26,0.97)', borderRight: '1px solid rgba(255,255,255,0.06)', height: '100dvh' }}>
 
       {/* Logo */}
       <div className="px-5 pt-6 pb-5">
@@ -108,6 +117,7 @@ export default function Sidebar() {
             <div className="space-y-0.5">
               {group.items.map(({ to, icon: Icon, label, end }) => (
                 <NavLink key={to} to={to} end={end}
+                  onClick={onCloseMobile}
                   className={({ isActive }) =>
                     `nav-item ${isActive ? 'active' : ''}`
                   }>
@@ -132,7 +142,7 @@ export default function Sidebar() {
 
       {/* Bottom section */}
       <div className="px-3 pb-5 space-y-1">
-        <NavLink to="/app/notifications"
+        <NavLink to="/app/notifications" onClick={onCloseMobile}
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Bell className="w-4 h-4 flex-shrink-0" />
           <span>Notifications</span>
@@ -144,7 +154,7 @@ export default function Sidebar() {
           )}
         </NavLink>
 
-        <NavLink to="/app/settings"
+        <NavLink to="/app/settings" onClick={onCloseMobile}
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Settings className="w-4 h-4 flex-shrink-0" />
           <span>Settings</span>

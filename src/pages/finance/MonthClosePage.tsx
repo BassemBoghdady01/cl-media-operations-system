@@ -204,7 +204,7 @@ export default function MonthClosePage() {
               <div className="space-y-2">
                 {displayPeriods.map((p) => (
                   <div key={`${p.year}-${p.month}`}
-                    className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
+                    className={`flex flex-wrap items-center gap-3 p-3 rounded-xl transition-colors ${
                       selected?.year === p.year && selected?.month === p.month ? 'bg-blue-500/[0.08]' : 'bg-white/[0.02]'
                     }`}>
                     {p.status === 'closed'
@@ -297,7 +297,7 @@ export default function MonthClosePage() {
       {reopening && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setReopening(null)}>
-          <div className="glass-blue rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+          <div className="glass-blue rounded-2xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-bold text-white mb-1">
               Reopen {MONTHS[reopening.month - 1]} {reopening.year}
             </h3>

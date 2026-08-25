@@ -77,21 +77,48 @@ export default function App() {
               <Route path="/app" element={<AppLayout />}>
                 <Route index element={<Navigate to="/app/dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
-                <Route path="clients" element={<ClientsPage />} />
-                <Route path="clients/:id" element={<ClientProfile />} />
-                <Route path="pipeline" element={<VideoPipeline />} />
-                <Route path="pipeline/:id" element={<VideoDetail />} />
-                <Route path="calendar" element={<ContentCalendar />} />
-                <Route path="ai" element={<AIStudio />} />
-                <Route path="assets" element={<AssetLibrary />} />
-                <Route path="packages" element={<PackagesPage />} />
-                <Route path="billing" element={<BillingPage />} />
-                <Route path="team" element={<TeamPage />} />
-                <Route path="tasks" element={<TasksPage />} />
-                <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
-                <Route path="settings" element={<SettingsPage />} />
-                <Route path="booking" element={<BookingPage />} />
+
+                {/* ── Every module route carries its own permission (RLS is the
+                       real enforcement; these guards keep the UX honest) ── */}
+                <Route element={<PermissionGuard permission="clients.view" areaLabel="clients" />}>
+                  <Route path="clients" element={<ClientsPage />} />
+                  <Route path="clients/:id" element={<ClientProfile />} />
+                </Route>
+                <Route element={<PermissionGuard permission="videos.view" areaLabel="the video pipeline" />}>
+                  <Route path="pipeline" element={<VideoPipeline />} />
+                  <Route path="pipeline/:id" element={<VideoDetail />} />
+                </Route>
+                <Route element={<PermissionGuard permission="calendar.view" areaLabel="the content calendar" />}>
+                  <Route path="calendar" element={<ContentCalendar />} />
+                </Route>
+                <Route element={<PermissionGuard permission="ai.use" areaLabel="AI Studio" />}>
+                  <Route path="ai" element={<AIStudio />} />
+                </Route>
+                <Route element={<PermissionGuard permission="assets.view" areaLabel="the asset library" />}>
+                  <Route path="assets" element={<AssetLibrary />} />
+                </Route>
+                <Route element={<PermissionGuard permission="packages.view" areaLabel="packages" />}>
+                  <Route path="packages" element={<PackagesPage />} />
+                </Route>
+                <Route element={<PermissionGuard permission="invoices.view" areaLabel="invoices" />}>
+                  <Route path="billing" element={<BillingPage />} />
+                </Route>
+                <Route element={<PermissionGuard permission="users.view" areaLabel="the team" />}>
+                  <Route path="team" element={<TeamPage />} />
+                </Route>
+                <Route element={<PermissionGuard permission="tasks.view" areaLabel="tasks" />}>
+                  <Route path="tasks" element={<TasksPage />} />
+                </Route>
+                <Route element={<PermissionGuard permission="analytics.view" areaLabel="analytics" />}>
+                  <Route path="analytics" element={<AnalyticsPage />} />
+                </Route>
+                <Route element={<PermissionGuard permission="settings.view" areaLabel="settings" />}>
+                  <Route path="settings" element={<SettingsPage />} />
+                </Route>
+                <Route element={<PermissionGuard permission="bookings.view" areaLabel="shooting bookings" />}>
+                  <Route path="booking" element={<BookingPage />} />
+                </Route>
 
                 {/* ── Setup / onboarding ── */}
                 <Route element={<PermissionGuard permission="settings.view" areaLabel="workspace setup" />}>

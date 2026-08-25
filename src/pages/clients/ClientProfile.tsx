@@ -183,7 +183,7 @@ export default function ClientProfile() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <Link to="/app/clients" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6">
           <ArrowLeft className="w-3.5 h-3.5" /> All Clients
         </Link>
@@ -196,7 +196,7 @@ export default function ClientProfile() {
 
   if (error) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <Link to="/app/clients" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6">
           <ArrowLeft className="w-3.5 h-3.5" /> All Clients
         </Link>
@@ -211,7 +211,7 @@ export default function ClientProfile() {
 
   if (notFound || !client) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <Link to="/app/clients" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6">
           <ArrowLeft className="w-3.5 h-3.5" /> All Clients
         </Link>
@@ -238,7 +238,7 @@ export default function ClientProfile() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 lg:p-8">
+      className="p-4 sm:p-6 lg:p-8">
 
       {/* Back */}
       <Link to="/app/clients" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6">
@@ -303,7 +303,7 @@ export default function ClientProfile() {
         </div>
 
         {/* Quick stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 pt-5"
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-5 pt-5"
           style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           <div className="text-center">
             <div className="text-xl font-black text-white">{videos.length}</div>
@@ -376,7 +376,7 @@ export default function ClientProfile() {
             {pkg && (
               <div className="glass-blue rounded-2xl p-5">
                 <h3 className="text-sm font-bold text-white mb-4">Package Usage — {pkg.name}</h3>
-                <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                   {[
                     { label: 'Videos', used: pkg.consumedVideos, total: pkg.includedVideos },
                     { label: 'Revisions', used: pkg.consumedRevisions, total: pkg.includedRevisions },
@@ -552,7 +552,7 @@ export default function ClientProfile() {
                   {pkg.status}
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-4 mb-5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
                 {[
                   { label: 'Videos', used: pkg.consumedVideos, total: pkg.includedVideos },
                   { label: 'Revisions', used: pkg.consumedRevisions, total: pkg.includedRevisions },
@@ -935,7 +935,7 @@ function QuickCreateModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.65)' }} onClick={onClose}>
-      <div className="glass-blue rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+      <div className="glass-blue rounded-2xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-sm font-bold text-white mb-1">{titles[kind]}</h3>
         <p className="text-xs text-slate-500 mb-4">for {client.brandName}</p>
 
@@ -969,7 +969,7 @@ function QuickCreateModal({
           )}
 
           {kind === 'package' && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] text-slate-400 block mb-1">Monthly price *</label>
                 <input className="input text-xs py-2" type="number" min="0" step="0.01" value={amount}

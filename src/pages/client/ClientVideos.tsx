@@ -94,7 +94,7 @@ export default function ClientVideos() {
           <button
             key={s}
             onClick={() => setFilter(s)}
-            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+            className={`px-3 py-1 min-h-[40px] lg:min-h-0 rounded-lg text-xs font-medium transition-all ${
               filter === s
                 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                 : 'text-slate-500 hover:text-slate-300 border border-transparent'
@@ -124,7 +124,7 @@ export default function ClientVideos() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                className="rounded-xl p-4 flex items-center gap-4 group"
+                className="rounded-xl p-4 flex items-center gap-3 sm:gap-4 group"
                 style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
 
                 {/* Platform icon */}
@@ -136,7 +136,7 @@ export default function ClientVideos() {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-white truncate">{video.title}</div>
-                  <div className="flex items-center gap-3 mt-1">
+                  <div className="flex items-center gap-x-3 gap-y-0.5 mt-1 flex-wrap">
                     <span className="text-[11px] text-slate-500 capitalize">{video.platform}</span>
                     {video.dueDate && (
                       <span className="text-[11px] text-slate-600">
@@ -158,7 +158,7 @@ export default function ClientVideos() {
                 {/* Action */}
                 {video.postedUrl && (
                   <a href={video.postedUrl} target="_blank" rel="noopener noreferrer"
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-blue-400 transition-colors"
+                    className="w-10 h-10 lg:w-7 lg:h-7 flex-shrink-0 rounded-lg flex items-center justify-center text-slate-500 hover:text-blue-400 transition-colors"
                     style={{ background: 'rgba(255,255,255,0.04)' }}>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>

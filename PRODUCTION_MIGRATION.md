@@ -19,6 +19,7 @@ Take a database backup first (Supabase → Database → Backups) regardless.
 | 7 | `supabase/migrations/007_finance_functions.sql` | Aggregation functions (summary, MRR, receivables, profitability, break-even, forecast) |
 | 8 | `supabase/migrations/008_finance_defaults.sql` | Default categories, service templates, finance settings row. **No fake transactions.** |
 | 9 | `supabase/migrations/009_finance_ops.sql` | Operational RPCs (manual cycle generation, mark cycle paid, expense approve/reject, payroll pay-out, cash flow, last-login stamp), audit triggers for subscriptions/payroll items, and the private `finance-attachments` storage bucket + policies |
+| 10 | `supabase/migrations/010_scoped_access.sql` | Data scopes: `roles.scope` (agency / assigned / own), the `user_clients` assignment table, `client_in_scope()` / `project_in_scope()` helpers, and scope-aware RLS on clients, projects, videos, calendar, bookings, tasks, assets, packages and invoices. **After running this, 'assigned'-scope roles (PM, account manager, editors, …) see ONLY their assigned clients/projects/work — assign clients in /app/users.** |
 
 > **Do NOT run `supabase/seed.sql` in production.** It inserts sample
 > operational data for local development only. Production starts empty and

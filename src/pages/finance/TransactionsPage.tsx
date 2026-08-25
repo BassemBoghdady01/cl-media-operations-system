@@ -291,7 +291,7 @@ function TransactionForm({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(4,8,26,0.8)', backdropFilter: 'blur(4px)' }} onClick={onClose}>
-      <div className="glass-blue rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+      <div className="glass-blue rounded-2xl p-6 w-full max-w-lg max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-black text-white">
@@ -313,7 +313,7 @@ function TransactionForm({
               placeholder={type === 'income' ? 'e.g. Social media retainer — March' : 'e.g. Software subscription'} />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Amount *">
               <input className="input py-2 text-sm" type="number" min="0" step="0.01"
                 value={f.amount} onChange={(e) => set('amount', e.target.value)} placeholder="0.00" />
@@ -325,14 +325,14 @@ function TransactionForm({
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Date"><input className="input py-2 text-sm" type="date"
               value={f.transaction_date} onChange={(e) => set('transaction_date', e.target.value)} /></Field>
             <Field label="Due date"><input className="input py-2 text-sm" type="date"
               value={f.due_date} onChange={(e) => set('due_date', e.target.value)} /></Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Already settled">
               <input className="input py-2 text-sm" type="number" min="0" step="0.01"
                 value={f.amount_paid} onChange={(e) => set('amount_paid', e.target.value)} placeholder="0.00" />
@@ -347,7 +347,7 @@ function TransactionForm({
           </div>
 
           {type === 'income' ? (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Client">
                 <select className="input py-2 text-sm" value={f.client_id} onChange={(e) => set('client_id', e.target.value)}>
                   <option value="">—</option>
@@ -368,7 +368,7 @@ function TransactionForm({
             </Field>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Category">
               <select className="input py-2 text-sm" value={f.category_id} onChange={(e) => set('category_id', e.target.value)}>
                 <option value="">—</option>

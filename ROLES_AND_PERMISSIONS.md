@@ -27,6 +27,30 @@ user_permissions (per-user override: grant OR revoke one permission)
 - Payroll-linked ledger rows additionally require `finance.view_payroll`, so
   salary data never leaks through general expense queries.
 
+## Permission vs. Scope (migration 010)
+
+A **permission** says WHAT a user may do; a **scope** says WHICH records.
+`roles.scope` drives RLS via `client_in_scope()` / `project_in_scope()`:
+
+| Scope | Meaning | Roles |
+|---|---|---|
+| `agency` | All agency records their permissions allow | super_admin, agency_admin, operations, finance_manager, accountant, hr_manager, sales_manager, viewer (Read Only) |
+| `assigned` | Only assigned clients (+ projects they're on the team of, + work assigned directly to them) | project_manager, account_manager, client_success, marketing_manager, social_media_manager, media_buyer, content_strategist, content_creator, videographer, video_editor, graphic_designer, sales |
+| `own` | Exclusively their own client record | client |
+
+Assignment sources for `assigned` scope:
+1. **`user_clients`** rows — set in /app/users → "Assign clients" (the primary mechanism)
+2. `clients.assigned_manager_id` — the account manager of a client
+3. `projects.team_ids` — project team membership (set via "Assign projects")
+
+Direct-work paths always apply on top: an editor sees videos where they are
+the assigned editor, a videographer sees shoots they're on the team of, and
+everyone sees tasks assigned to or created by them.
+
+`clients.view` therefore does **not** mean "see every client" for a scoped
+role — a project manager with no assignments sees an empty client list until
+someone assigns them clients or puts them on a project team.
+
 ## The 21 roles
 
 | Role | Level | Notes |

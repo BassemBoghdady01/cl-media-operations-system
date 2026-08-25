@@ -92,7 +92,7 @@ function MemberCard({ member, i, onAssign }: {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div className="text-center p-2.5 rounded-xl" style={{ background: 'rgba(59,130,246,0.06)' }}>
           <div className="text-base font-black text-blue-400">{member.activeTasks}</div>
           <div className="text-[9px] text-slate-500">Active Tasks</div>
@@ -187,7 +187,7 @@ function AssignTaskModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-blue rounded-3xl p-6 w-full max-w-md">
+        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto">
 
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-black text-white">Assign Task</h2>
@@ -221,7 +221,7 @@ function AssignTaskModal({
             <textarea className="input py-2 text-xs mt-1 min-h-[64px]" placeholder="Add details…"
               value={form.description} onChange={(e) => set({ description: e.target.value })} />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide">Priority</label>
               <select className="input py-2 text-xs mt-1" value={form.priority}
@@ -387,7 +387,7 @@ export default function TeamPage() {
 
   if (error) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <PageErrorState
           title="We couldn't load the team"
           message={error}
@@ -401,7 +401,7 @@ export default function TeamPage() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 lg:p-8">
+      className="p-4 sm:p-6 lg:p-8">
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
@@ -488,7 +488,7 @@ export default function TeamPage() {
                 const color = pct >= 80 ? '#EF4444' : pct >= 60 ? '#F59E0B' : '#10B981'
                 const avail = availabilityConfig[m.availability]
                 return (
-                  <div key={m.id} className="flex items-center gap-4">
+                  <div key={m.id} className="flex flex-wrap items-center gap-4">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
                       style={{ background: m.color }}>
                       {getInitials(m.name)}

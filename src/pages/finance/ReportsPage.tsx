@@ -362,7 +362,7 @@ export default function ReportsPage() {
         </Panel>
       ) : tab === 'revenue' ? (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard label="Collected" color="#10B981" emphasis
               value={formatMoney(s?.revenue_collected ?? 0, currency)} sub="Settled this period" />
             <KpiCard label="Expected" color="#38BDF8"
@@ -483,7 +483,7 @@ export default function ReportsPage() {
             </Panel>
           ) : (
             <>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <KpiCard label="Monthly recurring revenue" color="#8B5CF6" emphasis
                   value={formatMoney(m?.mrr ?? 0, currency)}
                   sub="Current snapshot" />

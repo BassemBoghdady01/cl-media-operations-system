@@ -145,7 +145,7 @@ function BookingDetailModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-blue rounded-3xl p-6 w-full max-w-lg"
+        className="glass-blue rounded-3xl p-6 w-full max-w-lg max-h-[90dvh] overflow-y-auto"
         style={{ border: `1px solid ${booking.clientColor}30` }}>
 
         <div className="flex items-start justify-between mb-6">
@@ -168,7 +168,7 @@ function BookingDetailModal({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
           {[
             { icon: Calendar, label: 'Date', value: booking.date },
             { icon: Clock, label: 'Time', value: booking.duration ? `${booking.time} · ${booking.duration}` : booking.time },
@@ -306,7 +306,7 @@ function NewBookingModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-blue rounded-3xl p-6 w-full max-w-md">
+        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto">
 
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-black text-white">New Booking</h2>
@@ -325,7 +325,7 @@ function NewBookingModal({
               {clients.map((c) => <option key={c.id} value={c.id}>{c.brandName || c.name}</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide">Date</label>
               <input type="date" className="input py-2 text-xs mt-1" value={form.date}
@@ -515,7 +515,7 @@ export default function BookingPage() {
 
   if (error) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <PageErrorState
           title="We couldn't load your bookings"
           message={error}
@@ -529,7 +529,7 @@ export default function BookingPage() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 lg:p-8">
+      className="p-4 sm:p-6 lg:p-8">
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
@@ -537,7 +537,7 @@ export default function BookingPage() {
           <h1 className="text-2xl font-black text-white">Shooting Bookings</h1>
           <p className="text-slate-400 text-sm mt-1">Manage studio sessions and on-location shoots</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
             {(['calendar', 'list'] as const).map((v) => (
               <button key={v} onClick={() => setView(v)}
@@ -596,6 +596,8 @@ export default function BookingPage() {
                   </button>
                 </div>
 
+                <div className="overflow-x-auto">
+                  <div className="min-w-[640px]">
                 {/* Day headers */}
                 <div className="grid grid-cols-7 px-4 pt-3 pb-1">
                   {DAYS.map((d) => (
@@ -638,6 +640,8 @@ export default function BookingPage() {
                       </div>
                     )
                   })}
+                </div>
+                  </div>
                 </div>
               </div>
 

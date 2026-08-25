@@ -164,7 +164,7 @@ export default function CashFlowPage() {
       ) : (
         <div className="space-y-5">
           {/* ── KPIs for the selected currency ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             <KpiCard
               label="Opening balance" color="#38BDF8"
               value={formatMoney(totals.opening, currency)}

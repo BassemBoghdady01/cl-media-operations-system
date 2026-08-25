@@ -184,7 +184,7 @@ export default function SubscriptionsPage() {
       ) : (
         <div className="space-y-5">
           {/* ── KPIs (per currency) ── */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <KpiCard
               label="Active subscriptions" color="#10B981" emphasis
               value={String(st?.active_count ?? 0)}
@@ -355,7 +355,7 @@ function RemindersPanel({ agencyId }: { agencyId: string }) {
     <Panel
       title="Payment reminders"
       action={
-        <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)' }}>
+        <div className="flex flex-wrap gap-1 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)' }}>
           {REMINDER_TABS.map((t) => (
             <button
               key={t.value}
@@ -567,7 +567,7 @@ export function SubscriptionFormModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(4,8,26,0.8)', backdropFilter: 'blur(4px)' }} onClick={onClose}>
-      <div className="glass-blue rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+      <div className="glass-blue rounded-2xl p-6 w-full max-w-lg max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-black text-white">
@@ -584,7 +584,7 @@ export function SubscriptionFormModal({
         )}
 
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Client *">
               <select className="input py-2 text-sm" value={f.client_id} onChange={(e) => set('client_id', e.target.value)}>
                 <option value="">—</option>
@@ -604,7 +604,7 @@ export function SubscriptionFormModal({
               placeholder="Monthly social media retainer" />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Amount *">
               <input className="input py-2 text-sm" type="number" min="0" step="0.01"
                 value={f.amount} onChange={(e) => set('amount', e.target.value)} placeholder="0.00" />
@@ -616,7 +616,7 @@ export function SubscriptionFormModal({
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Billing frequency">
               <select className="input py-2 text-sm" value={f.billing_frequency}
                 onChange={(e) => set('billing_frequency', e.target.value as BillingFrequency)}>
@@ -637,7 +637,7 @@ export function SubscriptionFormModal({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Start date *">
               <input className="input py-2 text-sm" type="date"
                 value={f.start_date} onChange={(e) => onStartDateChange(e.target.value)} />
@@ -649,7 +649,7 @@ export function SubscriptionFormModal({
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {f.billing_frequency === 'custom' && (
               <Field label="Billing day (1–31)">
                 <input className="input py-2 text-sm" type="number" min="1" max="31" step="1"

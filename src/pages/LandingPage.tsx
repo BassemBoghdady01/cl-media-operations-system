@@ -183,11 +183,11 @@ export default function LandingPage() {
     <div className="min-h-screen overflow-x-hidden" style={{ background: '#04081A' }}>
 
       {/* ── Navbar ──────────────────────────────────────────────── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 lg:px-12 h-16"
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-6 lg:px-12 h-16"
         style={{ background: 'rgba(4,8,26,0.88)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <div className="flex items-center gap-3">
           <BrandLogo size={32} radius={12} />
-          <span className="text-[15px] font-bold text-white">EZ Marketing Agency</span>
+          <span className="hidden min-[400px]:inline text-[15px] font-bold text-white">EZ Marketing Agency</span>
           <span className="hidden sm:block text-[10px] text-slate-600 pl-2 border-l border-slate-800">Media Operations System</span>
         </div>
 
@@ -202,7 +202,7 @@ export default function LandingPage() {
           <Link to="/login" className="text-sm font-medium text-slate-400 hover:text-white transition-colors hidden sm:block">
             Sign In
           </Link>
-          <Link to="/login" className="btn-primary text-sm py-2 px-5">
+          <Link to="/login" className="btn-primary text-sm py-2 px-4 sm:px-5 whitespace-nowrap">
             Request Demo <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>

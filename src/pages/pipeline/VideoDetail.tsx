@@ -145,7 +145,7 @@ export default function VideoDetail() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <Link to="/app/pipeline" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6">
           <ArrowLeft className="w-3.5 h-3.5" /> Video Pipeline
         </Link>
@@ -158,7 +158,7 @@ export default function VideoDetail() {
 
   if (error) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <Link to="/app/pipeline" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6">
           <ArrowLeft className="w-3.5 h-3.5" /> Video Pipeline
         </Link>
@@ -173,7 +173,7 @@ export default function VideoDetail() {
 
   if (!video) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <Link to="/app/pipeline" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6">
           <ArrowLeft className="w-3.5 h-3.5" /> Video Pipeline
         </Link>
@@ -199,7 +199,7 @@ export default function VideoDetail() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 lg:p-8">
+      className="p-4 sm:p-6 lg:p-8">
 
       {/* Back */}
       <Link to="/app/pipeline" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-6">
@@ -236,7 +236,7 @@ export default function VideoDetail() {
                   <span className="text-[11px] text-slate-500">No video file uploaded yet</span>
                 </div>
               )}
-              <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+              <div className="absolute bottom-4 left-4 right-4 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-white font-semibold text-sm">{video.title}</p>
                   <p className="text-slate-400 text-xs">{video.clientName} · {video.duration ?? '—'} · {video.aspectRatio}</p>
@@ -248,7 +248,7 @@ export default function VideoDetail() {
             </div>
 
             {/* Action bar */}
-            <div className="flex items-center gap-3 px-4 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="flex flex-wrap items-center gap-3 px-4 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
               {(video.status === 'client_review' || video.status === 'internal_review') && (
                 <>
                   <button

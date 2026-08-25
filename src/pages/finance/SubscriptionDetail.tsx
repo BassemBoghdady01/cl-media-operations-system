@@ -481,7 +481,7 @@ function MarkPaidModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(4,8,26,0.8)', backdropFilter: 'blur(4px)' }} onClick={onClose}>
-      <div className="glass-blue rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+      <div className="glass-blue rounded-2xl p-6 w-full max-w-sm max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-lg font-black text-white">Record payment</h2>
           <button onClick={onClose} className="text-slate-500 hover:text-white"><X className="w-4 h-4" /></button>
