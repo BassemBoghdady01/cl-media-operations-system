@@ -165,8 +165,10 @@ CREATE OR REPLACE FUNCTION tasks_workflow_guard()
 RETURNS TRIGGER AS $$
 DECLARE
   v_rpc BOOLEAN := COALESCE(current_setting('app.task_workflow', TRUE), '') = 'on';
+  v_approver BOOLEAN;
 BEGIN
   IF auth.uid() IS NULL OR v_rpc THEN RETURN NEW; END IF;   -- service role / workflow RPC
+  v_approver := has_permission('tasks.approve');
 
   -- Non-managers (assignee, reviewer) may only move the status.
   IF NOT has_permission('tasks.manage') AND (
@@ -181,7 +183,15 @@ BEGIN
     RAISE EXCEPTION 'Only a manager can edit task details.';
   END IF;
 
-  IF NEW.status IS DISTINCT FROM OLD.status AND NOT has_permission('tasks.approve') THEN
+  -- The person doing the work can never change who reviews it.
+  IF NOT v_approver AND auth.uid() = OLD.assigned_to AND (
+       NEW.assigned_to IS DISTINCT FROM OLD.assigned_to OR
+       NEW.reviewer_id IS DISTINCT FROM OLD.reviewer_id OR
+       NEW.requires_final_approval IS DISTINCT FROM OLD.requires_final_approval) THEN
+    RAISE EXCEPTION 'You can''t change the assignee or reviewers of a task assigned to you.';
+  END IF;
+
+  IF NEW.status IS DISTINCT FROM OLD.status AND NOT v_approver THEN
     IF NEW.status IN ('submitted','in_final_review','done','changes_requested')
        OR OLD.status IN ('submitted','in_final_review','done') THEN
       RAISE EXCEPTION 'Use Submit / Review for this step — the status "%" can''t be set by hand.', NEW.status;
