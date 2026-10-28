@@ -51,6 +51,7 @@ import AuditLogPage from './pages/audit/AuditLogPage'
 import UsersPage from './pages/users/UsersPage'
 import RolesPage from './pages/users/RolesPage'
 import OnboardingPage from './pages/onboarding/OnboardingPage'
+import PartnersPage from './pages/partners/PartnersPage'
 
 export default function App() {
   return (
@@ -158,6 +159,11 @@ export default function App() {
                 </Route>
                 <Route element={<PermissionGuard permission="finance.manage" areaLabel="finance settings" />}>
                   <Route path="finance/settings" element={<FinanceSettingsPage />} />
+                </Route>
+
+                {/* ── Partners (owners only) ── */}
+                <Route element={<PermissionGuard permission="partners.view" areaLabel="partners" />}>
+                  <Route path="partners" element={<PartnersPage />} />
                 </Route>
 
                 {/* ── Administration ── */}

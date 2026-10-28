@@ -68,7 +68,7 @@ OPENAI_API_KEY=sk-...           # AI Studio
    `fix_auth_profile_bootstrap` → `002_roles_permissions` →
    `003_finance_core` → `004_subscriptions_recurring` → `005_payroll` →
    `006_finance_rls` → `007_finance_functions` → `008_finance_defaults` →
-   `009_finance_ops`.
+   `009_finance_ops` → `010_scoped_access` → `011_partners` → `012_task_workflow`.
 3. Promote the first Super Admin (one-liner in the runbook), then finish
    setup from **/app/onboarding**.
 
@@ -123,5 +123,6 @@ supabase/
 | `ROLES_AND_PERMISSIONS.md` | 21 roles, 48 permissions, RLS, secure user creation |
 | `PRODUCTION_MIGRATION.md` | Exact SQL run order, env vars, cron, rollback |
 | `HANDOVER.md` | Complete system documentation |
+| `PARTNERS_AND_TASKS.md` | Partners & profit distribution, task delivery and two-stage review |
 | `CLIENT_PRESENTATION_CHECKLIST.md` | Walkthrough script |
 | `supabase/README.md` | Supabase base-schema setup |

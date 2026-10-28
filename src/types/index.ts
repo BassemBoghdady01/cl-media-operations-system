@@ -187,7 +187,7 @@ export interface Task {
   assignedTo: string
   assignedToName: string
   assignedToColor: string
-  status: 'todo' | 'in_progress' | 'waiting' | 'done' | 'blocked'
+  status: TaskStatus
   priority: 'low' | 'medium' | 'high' | 'urgent'
   dueDate: string
   clientId?: string
@@ -196,7 +196,19 @@ export interface Task {
   projectId?: string
   tags?: string[]
   createdAt: string
+  // Delivery workflow (migration 012)
+  reviewerId?: string
+  reviewerName?: string
+  createdBy?: string
+  requiresFinalApproval?: boolean
+  revisionCount?: number
+  submittedAt?: string
+  completedAt?: string
 }
+
+export type TaskStatus =
+  | 'todo' | 'in_progress' | 'submitted' | 'in_final_review'
+  | 'changes_requested' | 'done' | 'waiting' | 'blocked'
 
 export interface Booking {
   id: string

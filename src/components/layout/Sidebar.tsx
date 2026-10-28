@@ -5,7 +5,7 @@ import {
   UserCheck, CheckSquare, Package, CreditCard, BarChart3, Settings,
   Bell, LogOut, Camera, Wallet, TrendingUp, Receipt, PieChart,
   Banknote, ShieldCheck, FileText, ArrowLeftRight, RefreshCw,
-  ClipboardCheck, ScrollText, SlidersHorizontal,
+  ClipboardCheck, ScrollText, SlidersHorizontal, Handshake,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Permission } from '../../config/roles'
@@ -37,6 +37,12 @@ const navGroups: {
     items: [
       { to: '/app/ai', icon: Sparkles, label: 'AI Studio', permission: 'ai.use' },
       { to: '/app/assets', icon: FolderOpen, label: 'Asset Library', permission: 'assets.view' },
+    ],
+  },
+  {
+    label: 'Company',
+    items: [
+      { to: '/app/partners', icon: Handshake, label: 'Partners & Profits', permission: 'partners.view' },
     ],
   },
   {

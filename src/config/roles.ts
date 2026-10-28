@@ -23,6 +23,7 @@
 
 export const ROLES = {
   SUPER_ADMIN: 'super_admin',
+  PARTNER: 'partner',
   AGENCY_ADMIN: 'agency_admin',
   FINANCE_MANAGER: 'finance_manager',
   HR_MANAGER: 'hr_manager',
@@ -52,6 +53,7 @@ export const ALL_ROLES: readonly UserRole[] = Object.values(ROLES)
 /** Lower = higher authority. Used for "who may modify whom". */
 export const ROLE_LEVEL: Readonly<Record<UserRole, number>> = {
   super_admin: 0,
+  partner: 5,
   agency_admin: 10,
   finance_manager: 20,
   hr_manager: 20,
@@ -76,6 +78,7 @@ export const ROLE_LEVEL: Readonly<Record<UserRole, number>> = {
 
 export const ROLE_LABELS: Readonly<Record<UserRole, string>> = {
   super_admin: 'Super Admin',
+  partner: 'Partner',
   agency_admin: 'Agency Admin',
   finance_manager: 'Finance Manager',
   hr_manager: 'HR Manager',
@@ -109,6 +112,7 @@ export type RoleScope = 'agency' | 'assigned' | 'own'
 
 export const ROLE_SCOPES: Readonly<Record<UserRole, RoleScope>> = {
   super_admin: 'agency',
+  partner: 'agency',
   agency_admin: 'agency',
   finance_manager: 'agency',
   hr_manager: 'agency',
@@ -154,6 +158,7 @@ const ROLE_ALIASES: Readonly<Record<string, UserRole>> = {
   superadmin: ROLES.SUPER_ADMIN,
   'super-admin': ROLES.SUPER_ADMIN,
   agency_owner: ROLES.SUPER_ADMIN,
+  shareholder: ROLES.PARTNER,
   administrator: ROLES.AGENCY_ADMIN,
   finance: ROLES.FINANCE_MANAGER,
   hr: ROLES.HR_MANAGER,
@@ -188,6 +193,7 @@ export const INTERNAL_ROLES: readonly UserRole[] = ALL_ROLES.filter(
 
 export const ADMIN_ROLES: readonly UserRole[] = [
   ROLES.SUPER_ADMIN,
+  ROLES.PARTNER,
   ROLES.AGENCY_ADMIN,
   ROLES.OPERATIONS,
   ROLES.PROJECT_MANAGER,
@@ -195,6 +201,7 @@ export const ADMIN_ROLES: readonly UserRole[] = [
 
 export const FINANCE_ROLES: readonly UserRole[] = [
   ROLES.SUPER_ADMIN,
+  ROLES.PARTNER,
   ROLES.FINANCE_MANAGER,
   ROLES.ACCOUNTANT,
 ]
@@ -213,7 +220,7 @@ export const PERMISSIONS = [
   'videos.view', 'videos.manage', 'videos.review',
   'calendar.view', 'calendar.manage',
   'assets.view', 'assets.manage',
-  'tasks.view', 'tasks.manage',
+  'tasks.view', 'tasks.manage', 'tasks.approve',
   'bookings.view', 'bookings.manage',
   'packages.view', 'packages.manage',
   'ai.use', 'ai.manage',
@@ -227,6 +234,7 @@ export const PERMISSIONS = [
   'users.view', 'users.create', 'users.edit', 'users.manage_roles', 'users.deactivate',
   'settings.view', 'settings.manage',
   'audit.view',
+  'partners.view', 'partners.manage',
   'portal.access',
 ] as const
 
@@ -234,13 +242,21 @@ export type Permission = (typeof PERMISSIONS)[number]
 
 const ALL: readonly Permission[] = PERMISSIONS
 
-/** Everything except payroll — deliberate separation of duties. */
+/** Everything except payroll and partner equity — deliberate separation of duties. */
 const ADMIN_NO_PAYROLL: readonly Permission[] = ALL.filter(
-  (p) => p !== 'finance.view_payroll' && p !== 'finance.manage_payroll'
+  (p) =>
+    p !== 'finance.view_payroll' && p !== 'finance.manage_payroll' &&
+    p !== 'partners.view' && p !== 'partners.manage'
+)
+
+/** Company owners (migration 011): everything except editing the role matrix. */
+const PARTNER_PERMISSIONS: readonly Permission[] = ALL.filter(
+  (p) => p !== 'users.manage_roles' && p !== 'portal.access'
 )
 
 export const ROLE_PERMISSIONS: Readonly<Record<UserRole, readonly Permission[]>> = {
   super_admin: ALL,
+  partner: PARTNER_PERMISSIONS,
   agency_admin: ADMIN_NO_PAYROLL,
 
   finance_manager: [
