@@ -707,7 +707,7 @@ export default function PartnersPage() {
         ))}
       </div>
 
-      {issues.length > 0 && (
+      {issues.length > 0 && partners.length > 0 && (
         <div className="rounded-2xl p-4 mb-5 flex gap-3 text-xs text-amber-200"
           style={{ background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.25)' }}>
           <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />

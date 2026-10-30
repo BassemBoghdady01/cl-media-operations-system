@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { useLocation, useOutlet } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
@@ -13,6 +13,10 @@ import Navbar from './Navbar'
  */
 export default function AppLayout() {
   const location = useLocation()
+  // Capture the route element for THIS render. AnimatePresence keeps the exiting
+  // page's last element, so the outgoing page no longer re-renders the incoming
+  // route (which used to mount it twice and swallow ?new=1 deep links).
+  const outlet = useOutlet()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   // Route change closes the drawer.
@@ -69,7 +73,7 @@ export default function AppLayout() {
               transition={{ duration: 0.22, ease: 'easeOut' }}
               className="relative z-10 min-h-full"
             >
-              <Outlet />
+              {outlet}
             </motion.div>
           </AnimatePresence>
         </main>

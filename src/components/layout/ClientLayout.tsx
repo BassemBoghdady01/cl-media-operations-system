@@ -150,9 +150,7 @@ export default function ClientLayout() {
 
       {/* Main content */}
       <main className="flex-1 overflow-x-hidden">
-        <AnimatePresence mode="wait">
-          <Outlet />
-        </AnimatePresence>
+        <Outlet />
       </main>
 
       {/* Footer */}
