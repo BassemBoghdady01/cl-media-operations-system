@@ -28,6 +28,7 @@ Take a database backup first (Supabase → Database → Backups) regardless.
 | 16 | `supabase/migrations/016_last_super_admin_guard.sql` | The last active Super Admin can never be demoted or deactivated (database-level). |
 | 17 | `supabase/migrations/017_exact_partner_allocation.sql` | Optional exact ownership units; largest-remainder profit allocation (lines always sum exactly); 1-cent paid-status fix. Regression test: `tests/db/partners_allocation.test.sql`. |
 | 18 | `supabase/migrations/018_egp_default_currency.sql` | packages/invoices currency default USD → EGP (default only; no rows changed). |
+| 19 | `supabase/migrations/019_rpc_tenant_checks_and_billing_catchup.sql` | Finance RPCs (expenses, subscription payments/cycles, payroll) refuse records outside the caller's agency; cron-only helpers revoked from browser roles; subscription generator catches up all missed periods and never queues past-dated reminders. |
 
 > **Do NOT run `supabase/dev/demo-seed.local-only.sql` in production.** It inserts sample
 > operational data for local development only. Production starts empty and
