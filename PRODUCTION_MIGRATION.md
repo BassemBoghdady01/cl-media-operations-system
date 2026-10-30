@@ -32,7 +32,7 @@ Take a database backup first (Supabase → Database → Backups) regardless.
 | 20 | `supabase/migrations/020_bill_overdue_subscriptions.sql` | The generator also bills subscriptions flagged `overdue` (previously one unpaid month silently stopped all future billing). **Not yet applied.** |
 | 21 | `supabase/migrations/021_invited_users_join_agency.sql` | Users created by the admin API (app_metadata.agency_id, service-role only) join the inviting agency instead of spawning an empty agency each. Pairs with the api/admin/users.ts change. **Not yet applied.** |
 
-Rollback for 016–020: `supabase/rollback/rollback_016_020.sql` (restores the pre-016 functions verbatim; re-opens the fixed gaps — prefer app-only rollback).
+Rollback for 016–021: `supabase/rollback/rollback_016_021.sql` (restores the pre-016 functions verbatim; re-opens the fixed gaps — prefer app-only rollback).
 
 > **Do NOT run `supabase/dev/demo-seed.local-only.sql` in production.** It inserts sample
 > operational data for local development only. Production starts empty and

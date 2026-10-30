@@ -1,5 +1,5 @@
 -- ============================================================================
--- EZ Marketing Agency — ROLLBACK for migrations 016–020   (DO NOT RUN casually)
+-- EZ Marketing Agency — ROLLBACK for migrations 016–021   (DO NOT RUN casually)
 --
 -- Restores the function definitions that were live before 016–020, taken
 -- verbatim from the earlier migration files. Rolling back RE-OPENS the
@@ -611,6 +611,50 @@ BEGIN
   END IF;
 
   RETURN v_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 021 handle_new_user  (from migrations/fix_auth_profile_bootstrap.sql)
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_agency_id   UUID;
+  v_full_name   TEXT;
+  v_agency_name TEXT;
+BEGIN
+  v_full_name := COALESCE(
+    NULLIF(TRIM(NEW.raw_user_meta_data->>'full_name'), ''),
+    SPLIT_PART(NEW.email, '@', 1)
+  );
+
+  v_agency_name := COALESCE(
+    NULLIF(TRIM(NEW.raw_user_meta_data->>'agency_name'), ''),
+    v_full_name || '''s Agency'
+  );
+
+  -- Create the workspace this user will own.
+  INSERT INTO agencies (name, plan)
+  VALUES (v_agency_name, 'starter')
+  RETURNING id INTO v_agency_id;
+
+  -- First user of a new agency owns it.
+  INSERT INTO profiles (id, email, full_name, agency_id, role)
+  VALUES (NEW.id, NEW.email, v_full_name, v_agency_id, 'agency_admin')
+  ON CONFLICT (id) DO NOTHING;
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  -- Never block auth user creation. Fall back to a bare profile; the app's
+  -- bootstrap path (AuthContext.resolveSession) completes the repair on login.
+  RAISE WARNING 'handle_new_user failed for %: %', NEW.id, SQLERRM;
+  BEGIN
+    INSERT INTO profiles (id, email, full_name)
+    VALUES (NEW.id, NEW.email, v_full_name)
+    ON CONFLICT (id) DO NOTHING;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'handle_new_user fallback also failed for %: %', NEW.id, SQLERRM;
+  END;
+  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
