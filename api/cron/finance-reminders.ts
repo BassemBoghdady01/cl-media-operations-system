@@ -12,6 +12,9 @@
  *     /api and is never bundled into the browser. The key must NOT be prefixed
  *     with VITE_.
  *
+ * KILL SWITCH: without BILLING_CRON_ENABLED=true the endpoint only verifies
+ * authorization and configuration and returns { mode: 'safe-check' }.
+ *
  * IDEMPOTENT: every generator is safe to run repeatedly. Cycles are unique per
  * (subscription, period_start) and reminders per dedupe_key, so a double run
  * creates nothing twice.
@@ -70,8 +73,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return unauthorized(res, 'bad or missing secret')
   }
 
+  // ── Kill switch ──
+  // Real billing (cycles, ledger rows, reminders, notifications) runs ONLY
+  // when BILLING_CRON_ENABLED is exactly "true". Otherwise an authorized call
+  // is a safe, non-financial check: it proves the secret and the server key
+  // are configured and touches nothing.
   const url = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (process.env.BILLING_CRON_ENABLED !== 'true') {
+    return res.status(200).json({
+      mode: 'safe-check',
+      authorized: true,
+      serverKeyConfigured: Boolean(url && serviceKey),
+      billing: 'disabled — set BILLING_CRON_ENABLED=true to run billing',
+      checkedAt: new Date().toISOString(),
+    })
+  }
 
   if (!url || !serviceKey) {
     console.error('[cron/finance-reminders] missing Supabase server credentials')

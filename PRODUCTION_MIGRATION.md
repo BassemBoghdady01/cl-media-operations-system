@@ -31,8 +31,9 @@ Take a database backup first (Supabase → Database → Backups) regardless.
 | 19 | `supabase/migrations/019_rpc_tenant_checks_and_billing_catchup.sql` | Finance RPCs (expenses, subscription payments/cycles, payroll) refuse records outside the caller's agency; cron-only helpers revoked from browser roles; subscription generator catches up all missed periods and never queues past-dated reminders. |
 | 20 | `supabase/migrations/020_bill_overdue_subscriptions.sql` | The generator also bills subscriptions flagged `overdue` (previously one unpaid month silently stopped all future billing). **Not yet applied.** |
 | 21 | `supabase/migrations/021_invited_users_join_agency.sql` | Users created by the admin API (app_metadata.agency_id, service-role only) join the inviting agency instead of spawning an empty agency each. Pairs with the api/admin/users.ts change. **Not yet applied.** |
+| 22 | `supabase/migrations/022_security_hotfix.sql` | **Security hotfix.** Users can no longer change their own role / agency / client link / status (closes self-promotion and workspace takeover); permission overrides and client assignments scoped to the caller's agency; client portal works for clients linked via profiles.client_id; fixed search_path on SECURITY DEFINER functions; anon cannot execute them. **Not yet applied.** |
 
-Rollback for 016–021: `supabase/rollback/rollback_016_021.sql` (restores the pre-016 functions verbatim; re-opens the fixed gaps — prefer app-only rollback).
+Rollback for 016–021: `supabase/rollback/rollback_016_021.sql` (022 is not covered — it only adds restrictions; to undo it drop trigger `profiles_self_guard` and re-run the pre-022 policy texts recorded in the release report) (restores the pre-016 functions verbatim; re-opens the fixed gaps — prefer app-only rollback).
 
 > **Do NOT run `supabase/dev/demo-seed.local-only.sql` in production.** It inserts sample
 > operational data for local development only. Production starts empty and
@@ -135,3 +136,9 @@ DROP TABLE IF EXISTS payroll_items, payroll_runs, employee_compensation,
 
 Do **not** drop `roles`, `permissions`, `role_permissions` or the profile
 columns — the application depends on them for access control.
+
+### Billing kill switch
+`/api/cron/finance-reminders` performs real billing **only** when the Vercel
+variable `BILLING_CRON_ENABLED` is exactly `true`. Without it, an authorized
+call returns `{ "mode": "safe-check" }` and touches nothing — use that to
+verify `CRON_SECRET` and `SUPABASE_SERVICE_ROLE_KEY` before enabling billing.
