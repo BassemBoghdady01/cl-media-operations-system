@@ -39,3 +39,10 @@ test('an empty list shows EGP 0, not $0', () => {
 test('fractions always show two decimals', () => {
   assert.match(formatMoney(10.5, 'EGP'), /10\.50/)
 })
+
+test('foreign records show their currency code, never a bare "$"', () => {
+  const usd = formatMoney(10000, 'USD').replace(/\s/g, ' ')
+  assert.match(usd, /USD/)
+  assert.doesNotMatch(usd, /\$/)
+  assert.match(formatMoney(10000).replace(/\s/g, ' '), /^EGP 10,000$/)
+})

@@ -128,14 +128,26 @@ export const userService = {
     return data ? mapUser(data) : undefined
   },
 
-  /** Non-privileged profile fields (name, department, job title, colour). */
+  /**
+   * Non-privileged profile fields (name, department, job title, colour).
+   * Goes through admin_update_profile() (migration 023): your own profile, or
+   * a colleague's when you hold users.edit — checked in the database, same
+   * agency only, a Super Admin profile only by a Super Admin.
+   */
   updateProfile: async (
     id: string,
     updates: { full_name?: string; department?: string | null; job_title?: string | null; color?: string }
   ): Promise<void> => {
-    const { data: _rows, error } = await db().from('profiles').update(updates).eq('id', id).select('id')
+    const { error } = await db().rpc('admin_update_profile', {
+      p_user: id,
+      p_full_name: updates.full_name ?? null,
+      p_department: updates.department || null,
+      p_job_title: updates.job_title || null,
+      p_color: updates.color ?? null,
+      p_clear_department: updates.department === null || updates.department === '',
+      p_clear_job_title: updates.job_title === null || updates.job_title === '',
+    })
     orThrow('userService.updateProfile', error)
-    requireRows('userService.updateProfile', _rows)
   },
 
   // ── Privileged operations → server-side admin API ──

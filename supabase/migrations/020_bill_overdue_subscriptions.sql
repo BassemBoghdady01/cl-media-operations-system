@@ -12,7 +12,9 @@
 -- ============================================================================
 CREATE OR REPLACE FUNCTION public.generate_subscription_cycles(p_horizon_days integer DEFAULT 45)
 RETURNS TABLE(cycles_created integer, reminders_created integer, overdue_marked integer)
-LANGUAGE plpgsql SECURITY DEFINER AS $function$
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, extensions, pg_temp
+AS $function$
 DECLARE
   s            RECORD;
   v_next       DATE;

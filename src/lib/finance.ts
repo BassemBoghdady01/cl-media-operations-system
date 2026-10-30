@@ -36,7 +36,9 @@ export function formatMoney(
     return new Intl.NumberFormat(LOCALE, {
       style: 'currency',
       currency: code,
-      currencyDisplay: opts.display ?? 'symbol',
+      // Codes by default ("EGP 10,000", "USD 200") — never a bare "$" that could be
+      // mistaken for the agency's currency.
+      currencyDisplay: opts.display ?? 'code',
       maximumFractionDigits: digits,
       minimumFractionDigits: digits,
     }).format(value)
