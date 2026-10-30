@@ -22,6 +22,9 @@ Take a database backup first (Supabase → Database → Backups) regardless.
 | 10 | `supabase/migrations/010_scoped_access.sql` | Data scopes: `roles.scope` (agency / assigned / own), the `user_clients` assignment table, `client_in_scope()` / `project_in_scope()` helpers, and scope-aware RLS on clients, projects, videos, calendar, bookings, tasks, assets, packages and invoices. **After running this, 'assigned'-scope roles (PM, account manager, editors, …) see ONLY their assigned clients/projects/work — assign clients in /app/users.** |
 | 11 | `supabase/migrations/011_partners.sql` | Partners & profit sharing: `partner` role, `partners.view` / `partners.manage`, ownership table (direct partners + groups with members), partner equity ledger (capital, drawings, payouts), profit distributions from the ledger, and account balances / cash flow that include partner money. See `PARTNERS_AND_TASKS.md`. |
 | 12 | `supabase/migrations/012_task_workflow.sql` | Task delivery: new task statuses, submissions (files + links + note, versioned), two-stage review (team leader → final approval via `tasks.approve`), comments, notifications, private `task-files` bucket, and tightened task write policies. See `PARTNERS_AND_TASKS.md`. |
+| 13 | `supabase/migrations/013_partner_advance_offsets.sql` | Advance drawings are recovered (non-cash `advance_offset`) before a distribution is paid in cash; row locks on approve/pay/cancel. |
+| 14 | `supabase/migrations/014_client_video_review.sql` | `client_review_video()` RPC: portal clients approve / request revision on their own videos in client_review. |
+| 15 | `supabase/migrations/015_task_audit.sql` | Audit-log triggers on tasks, task_submissions, task_reviews. |
 
 > **Do NOT run `supabase/seed.sql` in production.** It inserts sample
 > operational data for local development only. Production starts empty and
