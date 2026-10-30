@@ -44,3 +44,17 @@ export type Row = Record<string, any>
 
 /** date-only string (YYYY-MM-DD) or '' from a nullable value. */
 export const dstr = (v: unknown): string => (v ? String(v).slice(0, 10) : '')
+
+/**
+ * Row Level Security makes a forbidden UPDATE/DELETE succeed with ZERO rows
+ * instead of returning an error — so the UI would say "saved" while nothing
+ * changed. Single-row writes chain `.select('id')` and call this.
+ */
+export function requireRows(operation: string, rows: unknown[] | null | undefined): void {
+  if (!rows || rows.length === 0) {
+    throw new ServiceError(
+      operation,
+      "nothing was saved — you don't have permission to change this record, or it no longer exists."
+    )
+  }
+}

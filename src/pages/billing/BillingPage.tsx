@@ -21,18 +21,24 @@ const statusConfig: Record<string, { label: string; icon: any; bg: string; text:
 }
 
 function InvoiceRow({
-  invoice, i, canManage, onMarkPaid, marking,
-}: { invoice: Invoice; i: number; canManage: boolean; onMarkPaid: (invoice: Invoice) => void; marking: boolean }) {
+  invoice, i, canManage, onMarkPaid, onMarkSent, marking,
+}: {
+  invoice: Invoice; i: number; canManage: boolean
+  onMarkPaid: (invoice: Invoice) => void
+  onMarkSent: (invoice: Invoice) => void
+  marking: boolean
+}) {
   const cfg = statusConfig[invoice.status] ?? statusConfig.draft
   const StatusIcon = cfg.icon
   const canMarkPaid = canManage && (invoice.status === 'sent' || invoice.status === 'overdue')
+  const canMarkSent = canManage && invoice.status === 'draft'
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(i * 0.05, 0.6) }}
-      className="flex items-center gap-4 px-4 py-4 rounded-xl hover:bg-white/[0.02] transition-colors group"
+      className="flex items-center gap-4 px-4 py-4 rounded-xl"
       style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
 
       {/* Invoice number */}
@@ -77,14 +83,26 @@ function InvoiceRow({
       </div>
 
       {/* Actions */}
-      <div className="flex-shrink-0 w-16 flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Actions — always visible so they work on touch screens */}
+      <div className="flex-shrink-0 w-24 flex justify-end gap-1.5">
+        {canMarkSent && (
+          <button
+            title="Mark as sent"
+            aria-label={`Mark ${invoice.invoiceNumber} as sent`}
+            disabled={marking}
+            onClick={() => onMarkSent(invoice)}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 transition-colors disabled:opacity-50 whitespace-nowrap">
+            <Send className="w-3 h-3" /> Mark sent
+          </button>
+        )}
         {canMarkPaid && (
           <button
             title="Mark as paid"
+            aria-label={`Mark ${invoice.invoiceNumber} as paid`}
             disabled={marking}
             onClick={() => onMarkPaid(invoice)}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-green-400 hover:bg-green-500/10 transition-all disabled:opacity-50">
-            <CheckCircle className="w-3.5 h-3.5" />
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold text-green-400 bg-green-500/10 hover:bg-green-500/20 transition-colors disabled:opacity-50 whitespace-nowrap">
+            <CheckCircle className="w-3 h-3" /> Mark paid
           </button>
         )}
       </div>
@@ -306,6 +324,29 @@ export default function BillingPage() {
     }
   }
 
+  const markSent = async (invoice: Invoice) => {
+    setMarkingId(invoice.id)
+    const previous = invoices
+    // Keep an existing issue date; a draft that was never issued is issued today.
+    const issuedDate = invoice.issuedDate || new Date().toISOString().slice(0, 10)
+    setInvoices((prev) =>
+      prev.map((inv) => (inv.id === invoice.id ? { ...inv, status: 'sent', issuedDate } : inv))
+    )
+    try {
+      await invoiceService.update(invoice.id, {
+        status: 'sent',
+        ...(invoice.issuedDate ? {} : { issuedDate }),
+      })
+      toastSuccess(`${invoice.invoiceNumber} marked as sent.`)
+    } catch (err) {
+      console.error('[BillingPage] markSent failed', err)
+      setInvoices(previous)
+      toastError(err instanceof Error ? err.message : `Could not mark ${invoice.invoiceNumber} as sent.`)
+    } finally {
+      setMarkingId(null)
+    }
+  }
+
   /** Suggest the next number in this month's INV-YYYYMM-### sequence. */
   const suggestInvoiceNumber = () => {
     const now = new Date()
@@ -460,7 +501,8 @@ export default function BillingPage() {
           </div>
 
           {/* Table */}
-          <div className="glass-blue rounded-2xl overflow-hidden">
+          <div className="glass-blue rounded-2xl overflow-x-auto">
+           <div className="min-w-[600px]">
             <div className="flex items-center gap-4 px-4 py-3"
               style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide w-36">Invoice #</span>
@@ -468,12 +510,12 @@ export default function BillingPage() {
               <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide w-24 text-right">Amount</span>
               <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide w-24 hidden md:block">Due Date</span>
               <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide w-24">Status</span>
-              <span className="w-16" />
+              <span className="w-24 text-[10px] font-bold text-slate-600 uppercase tracking-wide text-right">{canManage ? 'Actions' : ''}</span>
             </div>
             <div>
               {filtered.map((inv, i) => (
                 <InvoiceRow key={inv.id} invoice={inv} i={i} canManage={canManage}
-                  onMarkPaid={markPaid} marking={markingId === inv.id} />
+                  onMarkPaid={markPaid} onMarkSent={markSent} marking={markingId === inv.id} />
               ))}
               {filtered.length === 0 && (
                 <div className="text-center py-12">
@@ -484,6 +526,7 @@ export default function BillingPage() {
                 </div>
               )}
             </div>
+           </div>
           </div>
         </>
       )}

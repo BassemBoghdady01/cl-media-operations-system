@@ -1,7 +1,7 @@
 /**
  * Invoices — production service. No seed fallback.
  */
-import { db, orThrow, dstr, type Row } from './serviceCore'
+import { db, orThrow, dstr, type Row, requireRows } from './serviceCore'
 import type { Invoice } from '../types'
 
 export function mapInvoice(r: Row): Invoice {
@@ -72,16 +72,19 @@ export const invoiceService = {
     if (updates.discount !== undefined) patch.discount = updates.discount
     if (updates.total !== undefined) patch.total = updates.total
     if (updates.dueDate !== undefined) patch.due_date = updates.dueDate || null
+    if (updates.issuedDate !== undefined) patch.issued_date = updates.issuedDate || null
     if (updates.notes !== undefined) patch.notes = updates.notes
-    const { error } = await db().from('invoices').update(patch).eq('id', id)
+    const { data: _rows, error } = await db().from('invoices').update(patch).eq('id', id).select('id')
     orThrow('invoiceService.update', error)
+    requireRows('invoiceService.update', _rows)
   },
 
   markPaid: async (id: string): Promise<void> => {
-    const { error } = await db()
+    const { data: _rows, error } = await db()
       .from('invoices')
       .update({ status: 'paid', paid_at: new Date().toISOString() })
-      .eq('id', id)
+      .eq('id', id).select('id')
     orThrow('invoiceService.markPaid', error)
+    requireRows('invoiceService.markPaid', _rows)
   },
 }

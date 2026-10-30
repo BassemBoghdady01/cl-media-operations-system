@@ -45,11 +45,13 @@ const PIPELINE_STAGES = [
   { id: 'approved', label: 'Approved' },
 ]
 
-function StatCard({ icon: Icon, label, value, sub, color }: {
+function StatCard({ icon: Icon, label, value, sub, color, to }: {
   icon: typeof Users; label: string; value: string | number; sub?: string; color: string
+  /** When set the tile is a link and lifts on hover; otherwise it is static. */
+  to?: string
 }) {
-  return (
-    <motion.div whileHover={{ y: -2 }} className="glass-blue rounded-2xl p-5 relative overflow-hidden">
+  const body = (
+    <>
       <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-5 -translate-y-6 translate-x-6"
         style={{ background: color }} />
       <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: `${color}18` }}>
@@ -58,7 +60,17 @@ function StatCard({ icon: Icon, label, value, sub, color }: {
       <div className="text-2xl font-black text-white mb-0.5">{value}</div>
       <div className="text-xs font-medium text-slate-400">{label}</div>
       {sub && <div className="text-[10px] text-slate-600 mt-0.5">{sub}</div>}
-    </motion.div>
+    </>
+  )
+  if (!to) {
+    return <div className="glass-blue rounded-2xl p-5 relative overflow-hidden">{body}</div>
+  }
+  return (
+    <Link to={to} aria-label={`${label}: ${value}`} className="block">
+      <motion.div whileHover={{ y: -2 }} className="glass-blue rounded-2xl p-5 relative overflow-hidden h-full">
+        {body}
+      </motion.div>
+    </Link>
   )
 }
 
@@ -166,13 +178,15 @@ export default function Dashboard() {
   const upcomingTotal = upcomingIn.reduce((a, u) => a + u.amount, 0)
 
   const insights = useMemo(() => {
-    const lines: { icon: string; text: string; link: string; label: string }[] = []
+    // `link` is omitted when the viewer can't open the target page.
+    const lines: { icon: string; text: string; link?: string; label: string }[] = []
+    const canProfitLinks = hasPermission('finance.view_profit')
     const tc = topClients.filter((c) => c.currency === finCurrency)[0]
     if (tc && tc.revenue > 0) {
       lines.push({
         icon: '👑',
         text: `${tc.client_name} is your top revenue client this month (${formatMoney(tc.revenue, finCurrency)}).`,
-        link: '/app/finance/profitability', label: 'Profitability',
+        link: canProfitLinks ? '/app/finance/profitability' : undefined, label: 'Profitability',
       })
     }
     const ts = topServices.filter((x) => x.currency === finCurrency && x.revenue > 0)
@@ -181,7 +195,7 @@ export default function Dashboard() {
       lines.push({
         icon: '⭐',
         text: `${ts.service_name} is your most profitable service (${formatPercent(ts.margin, 0)} margin).`,
-        link: '/app/finance/reports', label: 'Reports',
+        link: canProfitLinks ? '/app/finance/reports' : undefined, label: 'Reports',
       })
     }
     const te = expenseMix.filter((e) => e.currency === finCurrency)[0]
@@ -189,7 +203,7 @@ export default function Dashboard() {
       lines.push({
         icon: '🧾',
         text: `${te.category_name} is your largest expense category (${formatPercent(te.share_percent, 0)} of spend).`,
-        link: '/app/finance/expenses', label: 'Expenses',
+        link: hasPermission('finance.view_expenses') ? '/app/finance/expenses' : undefined, label: 'Expenses',
       })
     }
     if (breakEven?.has_sufficient_data) {
@@ -214,7 +228,7 @@ export default function Dashboard() {
       })
     }
     return lines
-  }, [topClients, topServices, expenseMix, breakEven, awaitingReview, overdueTasks, finCurrency])
+  }, [topClients, topServices, expenseMix, breakEven, awaitingReview, overdueTasks, finCurrency, hasPermission])
 
   if (error) {
     return <PageErrorState title="We couldn't load your dashboard" message={error} onRetry={load} />
@@ -269,22 +283,22 @@ export default function Dashboard() {
           {canOps && (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               {hasPermission('clients.view') && (
-                <StatCard icon={Users} label="Active Clients" value={activeClients} color="#3B82F6" />
+                <StatCard icon={Users} label="Active Clients" value={activeClients} color="#3B82F6" to="/app/clients" />
               )}
               {hasPermission('projects.view') && (
                 <StatCard icon={FolderKanban} label="Active Projects" value={activeProjects} color="#8B5CF6" />
               )}
               {hasPermission('videos.view') && (
-                <StatCard icon={Film} label="In Production" value={inProduction} sub="videos right now" color="#06B6D4" />
+                <StatCard icon={Film} label="In Production" value={inProduction} sub="videos right now" color="#06B6D4" to="/app/pipeline" />
               )}
               {hasPermission('videos.view') && (
-                <StatCard icon={Clock} label="Awaiting Review" value={awaitingReview} sub="client review pending" color="#EAB308" />
+                <StatCard icon={Clock} label="Awaiting Review" value={awaitingReview} sub="client review pending" color="#EAB308" to="/app/pipeline" />
               )}
               {hasPermission('bookings.view') && (
-                <StatCard icon={Camera} label="Upcoming Shoots" value={upcomingShoots} sub="next 7 days" color="#10B981" />
+                <StatCard icon={Camera} label="Upcoming Shoots" value={upcomingShoots} sub="next 7 days" color="#10B981" to="/app/booking" />
               )}
               {hasPermission('tasks.view') && (
-                <StatCard icon={AlertTriangle} label="Overdue Tasks" value={overdueTasks} color="#EF4444" />
+                <StatCard icon={AlertTriangle} label="Overdue Tasks" value={overdueTasks} color="#EF4444" to="/app/tasks" />
               )}
             </div>
           )}
@@ -424,7 +438,8 @@ export default function Dashboard() {
                 ) : (
                   <div className="space-y-2">
                     {tasks.filter((t) => t.assignedTo === user?.id && t.status !== 'done').slice(0, 6).map((t) => (
-                      <div key={t.id} className="flex items-center gap-3 p-2.5 rounded-xl"
+                      <Link key={t.id} to={`/app/tasks?task=${encodeURIComponent(t.id)}`}
+                        className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/[0.04] transition-colors"
                         style={{ background: 'rgba(255,255,255,0.02)' }}>
                         <CheckCircle className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
@@ -434,7 +449,7 @@ export default function Dashboard() {
                         <span className={`text-[10px] font-semibold ${t.priority === 'urgent' ? 'text-red-400' : 'text-slate-500'}`}>
                           {t.priority}
                         </span>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 )}
@@ -452,9 +467,11 @@ export default function Dashboard() {
                     <span className="text-base flex-shrink-0">{ins.icon}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-slate-300 leading-relaxed">{ins.text}</p>
-                      <Link to={ins.link} className="text-[11px] font-semibold mt-1.5 inline-flex items-center gap-1 text-blue-400">
-                        {ins.label} <ArrowRight className="w-3 h-3" />
-                      </Link>
+                      {ins.link && (
+                        <Link to={ins.link} className="text-[11px] font-semibold mt-1.5 inline-flex items-center gap-1 text-blue-400">
+                          {ins.label} <ArrowRight className="w-3 h-3" />
+                        </Link>
+                      )}
                     </div>
                   </div>
                 ))}

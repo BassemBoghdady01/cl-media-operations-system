@@ -54,6 +54,21 @@ export default function ClientProfile() {
   const [modal, setModal] = useState<null | 'project' | 'task' | 'invoice' | 'package'>(null)
   const [notesDraft, setNotesDraft] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
+  const [openingAssetId, setOpeningAssetId] = useState<string | null>(null)
+
+  // Assets live in a private bucket — open them through a 1-hour signed URL.
+  const openAsset = async (a: Asset) => {
+    if (!a.url) return
+    setOpeningAssetId(a.id)
+    try {
+      await assetService.open(a)
+    } catch (err) {
+      console.error('[ClientProfile] asset open failed', err)
+      toastError(err instanceof Error ? `Could not open the file: ${err.message}` : 'Could not open the file.')
+    } finally {
+      setOpeningAssetId(null)
+    }
+  }
 
   const canBilling = hasPermission('subscriptions.view')
   const canPayments = hasPermission('finance.view') && hasPermission('finance.view_revenue')
@@ -295,7 +310,7 @@ export default function ClientProfile() {
               )
             )}
             {hasPermission('videos.manage') && (
-              <button className="btn-primary text-xs py-2 px-4" onClick={() => navigate('/app/pipeline')}>
+              <button className="btn-primary text-xs py-2 px-4" onClick={() => navigate(`/app/pipeline?new=1&client=${encodeURIComponent(client.id)}`)}>
                 <Plus className="w-3.5 h-3.5" /> New Video
               </button>
             )}
@@ -480,13 +495,13 @@ export default function ClientProfile() {
                 )}
                 {hasPermission('subscriptions.manage') && (
                   <button className="btn-secondary text-xs py-2 w-full justify-start gap-2"
-                    onClick={() => navigate('/app/finance/subscriptions')}>
+                    onClick={() => navigate(`/app/finance/subscriptions?new=1&client=${encodeURIComponent(client.id)}`)}>
                     <RefreshCw className="w-3.5 h-3.5" /> Create subscription →
                   </button>
                 )}
                 {hasPermission('finance.manage') && (
                   <button className="btn-secondary text-xs py-2 w-full justify-start gap-2"
-                    onClick={() => navigate('/app/finance/revenue')}>
+                    onClick={() => navigate(`/app/finance/revenue?new=1&client=${encodeURIComponent(client.id)}`)}>
                     <Wallet className="w-3.5 h-3.5" /> Record payment →
                   </button>
                 )}
@@ -605,7 +620,11 @@ export default function ClientProfile() {
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {assets.map((a) => (
-              <div key={a.id} className="glass-blue rounded-xl p-4 hover:border-blue-500/30 transition-all cursor-pointer">
+              <button key={a.id} type="button"
+                disabled={!a.url || openingAssetId === a.id}
+                onClick={() => void openAsset(a)}
+                title={a.url ? `Open ${a.name}` : 'No file attached'}
+                className={`glass-blue rounded-xl p-4 text-left transition-all disabled:cursor-default ${a.url ? 'hover:border-blue-500/30 cursor-pointer' : ''} ${openingAssetId === a.id ? 'opacity-60' : ''}`}>
                 <div className="w-10 h-10 rounded-xl mb-3 flex items-center justify-center text-lg"
                   style={{ background: 'rgba(59,130,246,0.1)' }}>
                   {a.type === 'logo' ? '🎨' : a.type === 'video' ? '🎬' : a.type === 'music' ? '🎵' : a.type === 'document' ? '📄' : '📁'}
@@ -613,7 +632,8 @@ export default function ClientProfile() {
                 <p className="text-xs font-semibold text-white truncate mb-0.5">{a.name}</p>
                 <p className="text-[10px] text-slate-500">{[a.folder, a.format, a.size].filter(Boolean).join(' · ')}</p>
                 {a.isApproved && <span className="text-[10px] text-green-400 mt-1 block">✓ Approved</span>}
-              </div>
+                {!a.url && <span className="text-[10px] text-slate-600 mt-1 block">No file attached</span>}
+              </button>
             ))}
           </div>
           {assets.length === 0 && (
@@ -698,7 +718,8 @@ export default function ClientProfile() {
               </div>
               <div className="space-y-1.5">
                 {tasks.filter((t) => t.status !== 'done').slice(0, 8).map((t) => (
-                  <div key={t.id} className="flex items-center gap-3 py-2 px-3 rounded-xl"
+                  <Link key={t.id} to={`/app/tasks?task=${encodeURIComponent(t.id)}`}
+                    className="flex items-center gap-3 py-2 px-3 rounded-xl hover:bg-white/[0.04] transition-colors"
                     style={{ background: 'rgba(255,255,255,0.02)' }}>
                     <CheckSquare className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
@@ -710,7 +731,7 @@ export default function ClientProfile() {
                     <span className={`text-[10px] font-semibold ${t.priority === 'urgent' ? 'text-red-400' : 'text-slate-500'}`}>
                       {t.priority}
                     </span>
-                  </div>
+                  </Link>
                 ))}
                 {tasks.filter((t) => t.status !== 'done').length === 0 && (
                   <p className="text-xs text-slate-500 text-center py-4">No open tasks.</p>
@@ -793,7 +814,7 @@ export default function ClientProfile() {
               <h3 className="text-sm font-bold text-white">Payment History</h3>
               {hasPermission('finance.manage') && (
                 <button className="btn-secondary text-[11px] py-1.5 px-3"
-                  onClick={() => navigate('/app/finance/revenue')}>
+                  onClick={() => navigate(`/app/finance/revenue?new=1&client=${encodeURIComponent(client.id)}`)}>
                   Record →
                 </button>
               )}

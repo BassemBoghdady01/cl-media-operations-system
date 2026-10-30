@@ -9,7 +9,7 @@
 import { db, orThrow, type Row } from './serviceCore'
 
 export type PartnerKind = 'individual' | 'group'
-export type PartnerTxType = 'capital_contribution' | 'capital_return' | 'drawing' | 'profit_payout'
+export type PartnerTxType = 'capital_contribution' | 'capital_return' | 'drawing' | 'profit_payout' | 'advance_offset'
 export type DistributionStatus = 'draft' | 'approved' | 'paid' | 'cancelled'
 
 export interface Partner {
@@ -94,14 +94,22 @@ export const TX_LABELS: Record<PartnerTxType, string> = {
   capital_return: 'Capital returned',
   drawing: 'Drawing / advance',
   profit_payout: 'Profit payout',
+  advance_offset: 'Advance recovered',
 }
 
-/** Money direction from the company's point of view. */
-export const TX_DIRECTION: Record<PartnerTxType, 'in' | 'out'> = {
+/** Types a person can record by hand (offsets are posted only by the payout RPC). */
+export const MANUAL_TX_TYPES: PartnerTxType[] = ['capital_contribution', 'capital_return', 'drawing', 'profit_payout']
+
+/**
+ * Money direction from the company's point of view. An advance offset moves
+ * no cash: it settles part of a profit share against an earlier drawing.
+ */
+export const TX_DIRECTION: Record<PartnerTxType, 'in' | 'out' | 'none'> = {
   capital_contribution: 'in',
   capital_return: 'out',
   drawing: 'out',
   profit_payout: 'out',
+  advance_offset: 'none',
 }
 
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v))

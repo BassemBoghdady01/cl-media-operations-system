@@ -19,11 +19,13 @@ import { payrollService, type PayrollRun } from '../../services/payrollService'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
+interface ReviewLink { label: string; to: string }
+
 interface Checklist {
   payroll: { ok: boolean; label: string; link: string } | null
   drafts: { count: number; link: string }
   approvals: { count: number; link: string }
-  unclassified: { count: number; link: string }
+  unclassified: { count: number; links: ReviewLink[] }
 }
 
 export default function MonthClosePage() {
@@ -99,6 +101,19 @@ export default function MonthClosePage() {
       ])
       const monthApprovals = approvals.filter((a) => a.transaction_date >= from && a.transaction_date <= to)
       const unclassified = all.rows.filter((t) => !t.category_id && t.type !== 'transfer')
+      const uncatExpenses = unclassified.filter((t) => t.type === 'expense').length
+      const uncatIncome = unclassified.filter((t) => t.type === 'income').length
+      // Land on exactly the uncategorised rows of this month, where each can be edited.
+      const uncatQuery = `?uncategorised=1&from=${from}&to=${to}`
+      const uncatLinks: ReviewLink[] = []
+      if (uncatExpenses > 0) uncatLinks.push({
+        label: uncatIncome > 0 ? `Expenses (${uncatExpenses}) →` : 'Review →',
+        to: `/app/finance/expenses${uncatQuery}`,
+      })
+      if (uncatIncome > 0) uncatLinks.push({
+        label: uncatExpenses > 0 ? `Revenue (${uncatIncome}) →` : 'Review →',
+        to: `/app/finance/revenue${uncatQuery}`,
+      })
       const run = runs.find((r) => r.year === year && r.month === month)
       setChecklist({
         payroll: canPayroll
@@ -110,9 +125,9 @@ export default function MonthClosePage() {
               link: '/app/finance/payroll',
             }
           : null,
-        drafts: { count: drafts.total, link: '/app/finance/expenses' },
+        drafts: { count: drafts.total, link: '/app/finance/approvals' },
         approvals: { count: monthApprovals.length, link: '/app/finance/approvals' },
-        unclassified: { count: unclassified.length, link: '/app/finance/expenses' },
+        unclassified: { count: unclassified.length, links: uncatLinks },
       })
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Could not run the pre-close checks.')
@@ -162,7 +177,9 @@ export default function MonthClosePage() {
     return <PageErrorState title="We couldn't load accounting periods" message={error} onRetry={load} />
   }
 
-  const CheckLine = ({ ok, text, count, link }: { ok: boolean; text: string; count?: number; link: string }) => (
+  const CheckLine = ({ ok, text, count, link, links }: {
+    ok: boolean; text: string; count?: number; link?: string; links?: ReviewLink[]
+  }) => (
     <div className="flex items-center gap-3 py-2">
       {ok ? (
         <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
@@ -172,7 +189,9 @@ export default function MonthClosePage() {
       <span className={`text-xs flex-1 ${ok ? 'text-slate-400' : 'text-white'}`}>
         {text}{count !== undefined && count > 0 ? ` (${count})` : ''}
       </span>
-      {!ok && <Link to={link} className="text-[11px] text-blue-400 hover:text-blue-300">Review →</Link>}
+      {!ok && (links ?? (link ? [{ label: 'Review →', to: link }] : [])).map((l) => (
+        <Link key={l.to} to={l.to} className="text-[11px] text-blue-400 hover:text-blue-300 whitespace-nowrap">{l.label}</Link>
+      ))}
     </div>
   )
 
@@ -272,7 +291,7 @@ export default function MonthClosePage() {
                     count={checklist.approvals.count} link={checklist.approvals.link} />
                   <CheckLine ok={checklist.unclassified.count === 0}
                     text={checklist.unclassified.count === 0 ? 'All transactions are categorised' : 'Uncategorised transactions'}
-                    count={checklist.unclassified.count} link={checklist.unclassified.link} />
+                    count={checklist.unclassified.count} links={checklist.unclassified.links} />
                 </div>
 
                 <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>

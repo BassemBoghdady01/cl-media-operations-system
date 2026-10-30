@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Camera, Plus, Calendar, Clock, MapPin, Users, CheckCircle,
-  ChevronLeft, ChevronRight, X, Check, DollarSign, FileText, Phone,
+  ChevronLeft, ChevronRight, X, Check, DollarSign, FileText, Phone, Mail, MessageCircle,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
@@ -10,6 +10,7 @@ import { bookingService } from '../../services/bookingService'
 import { clientService } from '../../services/clientService'
 import { userService, type ManagedUser } from '../../services/userService'
 import { getInitials, formatCurrency } from '../../lib/utils'
+import { toastSuccess, toastError } from '../../lib/toast'
 import type { Booking, Client } from '../../types'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -120,17 +121,27 @@ function BookingCard({ booking, team, onClick }: { booking: Booking; team: TeamL
   )
 }
 
+/** Digits-only phone for wa.me links (drops +, spaces, dashes, a leading 00). */
+function waDigits(phone: string): string {
+  return phone.replace(/\D/g, '').replace(/^00/, '')
+}
+
 function BookingDetailModal({
-  booking, team, confirming, onConfirm, onClose,
+  booking, team, client, canManage, confirming, onConfirm, onClose,
 }: {
   booking: Booking
   team: TeamLite[]
+  client?: Client
+  canManage: boolean
   confirming: boolean
   onConfirm: (booking: Booking) => void
   onClose: () => void
 }) {
   const cfg = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG.requested
-  const canConfirm = booking.status === 'requested' || booking.status === 'rescheduled'
+  const canConfirm = canManage && (booking.status === 'requested' || booking.status === 'rescheduled')
+  const phone = client?.phone?.trim() ?? ''
+  const email = client?.email?.trim() ?? ''
+  const wa = phone ? waDigits(phone) : ''
 
   return (
     <motion.div
@@ -248,10 +259,33 @@ function BookingDetailModal({
           </div>
         )}
 
+        {(phone || email) && (
+          <div className="mb-3">
+            <p className="text-[10px] text-slate-600 uppercase tracking-wide mb-1.5">
+              Contact {client?.contactName || booking.clientName}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {phone && (
+                <a href={`tel:${phone.replace(/[^\d+]/g, '')}`} className="btn-secondary flex-1 text-xs py-2.5 justify-center">
+                  <Phone className="w-3.5 h-3.5" /> Call
+                </a>
+              )}
+              {wa && (
+                <a href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer"
+                  className="btn-secondary flex-1 text-xs py-2.5 justify-center">
+                  <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                </a>
+              )}
+              {email && (
+                <a href={`mailto:${email}`} className="btn-secondary flex-1 text-xs py-2.5 justify-center">
+                  <Mail className="w-3.5 h-3.5" /> Email
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-2">
-          <button className="btn-secondary flex-1 text-xs py-2.5">
-            <Phone className="w-3.5 h-3.5" /> Contact Client
-          </button>
           {canConfirm && (
             <button
               className="btn-primary flex-1 text-xs py-2.5 disabled:opacity-50"
@@ -281,15 +315,16 @@ const EMPTY_FORM: NewBookingForm = {
 }
 
 function NewBookingModal({
-  clients, saving, error, onSubmit, onClose,
+  clients, initialDate, saving, error, onSubmit, onClose,
 }: {
   clients: Client[]
+  initialDate?: string
   saving: boolean
   error: string | null
   onSubmit: (form: NewBookingForm) => void
   onClose: () => void
 }) {
-  const [form, setForm] = useState<NewBookingForm>(EMPTY_FORM)
+  const [form, setForm] = useState<NewBookingForm>({ ...EMPTY_FORM, date: initialDate ?? '' })
   const set = (patch: Partial<NewBookingForm>) => setForm((f) => ({ ...f, ...patch }))
   const valid = form.clientId && form.date && form.time
 
@@ -378,8 +413,9 @@ function NewBookingModal({
 }
 
 export default function BookingPage() {
-  const { user, agency } = useAuth()
+  const { user, agency, hasPermission } = useAuth()
   const agencyId = user?.agencyId || agency?.id || ''
+  const canManage = hasPermission('bookings.manage')
 
   const [bookings, setBookings] = useState<Booking[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -393,6 +429,14 @@ export default function BookingPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [createDate, setCreateDate] = useState<string | undefined>(undefined)
+
+  const openCreate = (date?: string) => {
+    if (!canManage) return
+    setCreateError(null)
+    setCreateDate(date)
+    setShowCreate(true)
+  }
 
   const [view, setView] = useState<'calendar' | 'list'>('calendar')
   const today = new Date()
@@ -443,14 +487,17 @@ export default function BookingPage() {
     b.assignedTeam.map((id) => membersById.get(id)).filter((m): m is TeamLite => !!m)
 
   const confirmBooking = async (b: Booking) => {
+    if (!canManage) return
     setConfirming(true)
     const previous = bookings
     setBookings((prev) => prev.map((x) => (x.id === b.id ? { ...x, status: 'confirmed' } : x)))
     setSelectedBooking((s) => (s && s.id === b.id ? { ...s, status: 'confirmed' } : s))
     try {
       await bookingService.updateStatus(b.id, 'confirmed')
+      toastSuccess('Booking confirmed.')
     } catch (err) {
       console.error('[BookingPage] confirm failed', err)
+      toastError(err instanceof Error ? err.message : 'Could not confirm the booking.')
       setBookings(previous)
       setSelectedBooking((s) => (s && s.id === b.id ? { ...s, status: b.status } : s))
     } finally {
@@ -472,6 +519,7 @@ export default function BookingPage() {
         notes: form.notes || undefined,
       })
       setShowCreate(false)
+      toastSuccess('Booking created.')
       setReloadKey((k) => k + 1)
     } catch (err) {
       console.error('[BookingPage] create failed', err)
@@ -547,9 +595,11 @@ export default function BookingPage() {
               </button>
             ))}
           </div>
-          <button className="btn-primary text-sm" onClick={() => { setCreateError(null); setShowCreate(true) }}>
-            <Plus className="w-4 h-4" /> New Booking
-          </button>
+          {canManage && (
+            <button className="btn-primary text-sm" onClick={() => openCreate()}>
+              <Plus className="w-4 h-4" /> New Booking
+            </button>
+          )}
         </div>
       </div>
 
@@ -618,7 +668,10 @@ export default function BookingPage() {
                     const dayBookings = dateStr ? (bookingsByDate[dateStr] ?? []) : []
 
                     return (
-                      <div key={idx} className={`min-h-[80px] p-1.5 rounded-lg transition-colors ${isValid ? 'hover:bg-white/[0.02] cursor-pointer' : 'opacity-0 pointer-events-none'}`}
+                      <div key={idx}
+                        onClick={isValid && canManage ? () => openCreate(dateStr) : undefined}
+                        title={isValid && canManage ? `New booking on ${dateStr}` : undefined}
+                        className={`min-h-[80px] p-1.5 rounded-lg transition-colors ${isValid ? (canManage ? 'hover:bg-white/[0.02] cursor-pointer' : '') : 'opacity-0 pointer-events-none'}`}
                         style={{ background: isToday ? 'rgba(59,130,246,0.08)' : 'rgba(13,22,47,0.6)' }}>
                         {isValid && (
                           <>
@@ -628,7 +681,7 @@ export default function BookingPage() {
                             <div className="space-y-0.5">
                               {dayBookings.map((b) => (
                                 <button key={b.id}
-                                  onClick={() => setSelectedBooking(b)}
+                                  onClick={(e) => { e.stopPropagation(); setSelectedBooking(b) }}
                                   className="w-full text-left px-1.5 py-0.5 rounded-md text-[9px] font-medium truncate transition-opacity hover:opacity-80"
                                   style={{ background: `${b.clientColor}20`, color: b.clientColor }}>
                                   {b.time} {b.clientName.split(' ')[0]}
@@ -690,7 +743,7 @@ export default function BookingPage() {
                 <div className="md:col-span-2 xl:col-span-3 text-center py-10">
                   <Camera className="w-10 h-10 text-slate-700 mx-auto mb-3" />
                   <p className="text-slate-400 text-sm font-medium">No bookings yet</p>
-                  <p className="text-slate-600 text-xs mt-1">Create your first shoot session below.</p>
+                  {canManage && <p className="text-slate-600 text-xs mt-1">Create your first shoot session below.</p>}
                 </div>
               )}
               {bookings.map((b, i) => (
@@ -702,11 +755,12 @@ export default function BookingPage() {
                 </motion.div>
               ))}
               {/* New booking card */}
+              {canManage && (
               <motion.button
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: Math.min(bookings.length * 0.06, 0.6) }}
-                onClick={() => { setCreateError(null); setShowCreate(true) }}
+                onClick={() => openCreate()}
                 className="glass-blue rounded-2xl p-5 flex flex-col items-center justify-center gap-3 min-h-[240px] hover:bg-white/[0.03] transition-colors"
                 style={{ border: '2px dashed rgba(59,130,246,0.2)' }}>
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
@@ -718,6 +772,7 @@ export default function BookingPage() {
                   <p className="text-[11px] text-slate-600 mt-1">Schedule a shoot session</p>
                 </div>
               </motion.button>
+              )}
             </div>
           )}
         </>
@@ -729,6 +784,8 @@ export default function BookingPage() {
           <BookingDetailModal
             booking={selectedBooking}
             team={resolveTeam(selectedBooking)}
+            client={clients.find((c) => c.id === selectedBooking.clientId)}
+            canManage={canManage}
             confirming={confirming}
             onConfirm={confirmBooking}
             onClose={() => setSelectedBooking(null)}
@@ -737,6 +794,7 @@ export default function BookingPage() {
         {showCreate && (
           <NewBookingModal
             clients={clients}
+            initialDate={createDate}
             saving={creating}
             error={createError}
             onSubmit={createBooking}

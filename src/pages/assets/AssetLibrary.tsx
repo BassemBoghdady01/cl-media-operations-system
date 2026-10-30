@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, Upload, FolderOpen, Folder, Image, Film, Music,
-  FileText, Download, Copy, Check, X,
+  FileText, Download, Copy, Check, X, Trash2,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
@@ -42,16 +42,25 @@ function guessType(file: File): Asset['type'] {
   return 'other'
 }
 
-function AssetCard({ asset, onCopy }: { asset: Asset; onCopy: (asset: Asset) => void }) {
+function AssetCard({
+  asset, canDelete, busy, onOpen, onCopy, onDelete,
+}: {
+  asset: Asset
+  canDelete: boolean
+  busy: boolean
+  onOpen: (asset: Asset) => void
+  onCopy: (asset: Asset) => void
+  onDelete: (asset: Asset) => void
+}) {
   const ti = typeIcons[asset.type] ?? typeIcons.other
-  const openAsset = () => {
-    if (asset.url) window.open(asset.url, '_blank', 'noopener,noreferrer')
-  }
+  const hasFile = !!asset.url
+  const actionBtn =
+    'flex-1 min-w-0 h-8 rounded-lg flex items-center justify-center gap-1 text-[10px] font-semibold text-white transition-all disabled:opacity-50'
   return (
     <motion.div
-      whileHover={{ y: -2, scale: 1.01 }}
-      onClick={openAsset}
-      className={`glass-blue rounded-xl p-4 group relative overflow-hidden ${asset.url ? 'cursor-pointer' : ''}`}>
+      whileHover={hasFile ? { y: -2, scale: 1.01 } : undefined}
+      onClick={() => { if (hasFile && !busy) onOpen(asset) }}
+      className={`glass-blue rounded-xl p-4 relative overflow-hidden ${hasFile ? 'cursor-pointer' : ''}`}>
       {/* Thumbnail */}
       <div className="aspect-video rounded-lg mb-3 flex items-center justify-center text-4xl relative overflow-hidden"
         style={{ background: `${ti.color}10` }}>
@@ -59,24 +68,6 @@ function AssetCard({ asset, onCopy }: { asset: Asset; onCopy: (asset: Asset) => 
           <img src={asset.thumbnail} alt={asset.name} className="w-full h-full object-cover" />
         ) : (
           <span>{ti.emoji}</span>
-        )}
-        {/* Hover overlay — actions only exist when the asset has a real file URL */}
-        {asset.url && (
-          <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all"
-            style={{ background: 'rgba(4,8,26,0.8)' }}>
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center text-white transition-all hover:scale-110"
-              title="Copy link"
-              style={{ background: 'rgba(59,130,246,0.3)' }}
-              onClick={(e) => { e.stopPropagation(); onCopy(asset) }}>
-              <Copy className="w-3.5 h-3.5" />
-            </button>
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center text-white transition-all hover:scale-110"
-              title="Open file"
-              style={{ background: 'rgba(16,185,129,0.3)' }}
-              onClick={(e) => { e.stopPropagation(); openAsset() }}>
-              <Download className="w-3.5 h-3.5" />
-            </button>
-          </div>
         )}
       </div>
 
@@ -93,6 +84,33 @@ function AssetCard({ asset, onCopy }: { asset: Asset; onCopy: (asset: Asset) => 
         )}
       </div>
       <p className="text-[10px] text-slate-600 mt-0.5">{asset.folder}</p>
+
+      {/* Actions — always visible so they work on touch screens */}
+      {(hasFile || canDelete) && (
+        <div className="flex gap-1.5 mt-3" onClick={(e) => e.stopPropagation()}>
+          {hasFile && (
+            <>
+              <button className={actionBtn} title="Open file" disabled={busy}
+                style={{ background: 'rgba(16,185,129,0.2)' }}
+                onClick={() => onOpen(asset)}>
+                <Download className="w-3 h-3" /> Open
+              </button>
+              <button className={actionBtn} title="Copy a link (expires in 1 hour)" disabled={busy}
+                style={{ background: 'rgba(59,130,246,0.2)' }}
+                onClick={() => onCopy(asset)}>
+                <Copy className="w-3 h-3" /> Link
+              </button>
+            </>
+          )}
+          {canDelete && (
+            <button className={`${actionBtn} flex-none w-8`} title="Delete asset" disabled={busy}
+              style={{ background: 'rgba(239,68,68,0.18)' }}
+              onClick={() => onDelete(asset)}>
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      )}
     </motion.div>
   )
 }
@@ -277,6 +295,7 @@ export default function AssetLibrary() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [selectedType, setSelectedType] = useState('All')
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   const [showUpload, setShowUpload] = useState(false)
   const [initialFile, setInitialFile] = useState<File | null>(null)
@@ -314,15 +333,47 @@ export default function AssetLibrary() {
     return () => { cancelled = true }
   }, [agencyId, reloadKey])
 
-  const handleCopy = (asset: Asset) => {
+  const handleOpen = async (asset: Asset) => {
+    try {
+      await assetService.open(asset)
+    } catch (err) {
+      console.error('[AssetLibrary] open failed', err)
+      toastError(err instanceof Error ? `Could not open the file: ${err.message}` : 'Could not open the file.')
+    }
+  }
+
+  const handleCopy = async (asset: Asset) => {
     if (!asset.url) return
-    navigator.clipboard.writeText(asset.url).then(
-      () => {
-        setCopiedId(asset.id)
-        setTimeout(() => setCopiedId(null), 2000)
-      },
-      () => toastError('Could not copy the link to clipboard.')
-    )
+    setBusyId(asset.id)
+    try {
+      const url = await assetService.signedUrl(asset)
+      await navigator.clipboard.writeText(url)
+      setCopiedId(asset.id)
+      setTimeout(() => setCopiedId(null), 4000)
+      toastSuccess('Link copied — it expires in 1 hour.')
+    } catch (err) {
+      console.error('[AssetLibrary] copy link failed', err)
+      toastError(err instanceof Error ? `Could not copy the link: ${err.message}` : 'Could not copy the link.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleDelete = async (asset: Asset) => {
+    if (!canManage) return
+    if (!window.confirm(`Delete "${asset.name}"? The file is removed from storage and can't be recovered.`)) return
+    setBusyId(asset.id)
+    try {
+      const { fileRemoved } = await assetService.deleteWithFile(asset)
+      setAssets((prev) => prev.filter((a) => a.id !== asset.id))
+      if (fileRemoved) toastSuccess(`"${asset.name}" deleted.`)
+      else toastError(`"${asset.name}" was removed from the library, but its stored file could not be deleted.`)
+    } catch (err) {
+      console.error('[AssetLibrary] delete failed', err)
+      toastError(err instanceof Error ? err.message : 'Could not delete the asset.')
+    } finally {
+      setBusyId(null)
+    }
   }
 
   const openUpload = (file?: File) => {
@@ -335,6 +386,7 @@ export default function AssetLibrary() {
     setUploadError(null)
     try {
       setUploadPhase('uploading')
+      // Private bucket: `url` is the storage path; files open via signed URLs.
       const { url } = await storageService.uploadClientAsset(agencyId, form.clientId, file)
       setUploadPhase('saving')
       const name = form.name.trim() || file.name
@@ -519,7 +571,8 @@ export default function AssetLibrary() {
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: Math.min(i * 0.05, 0.6) }}>
-                      <AssetCard asset={asset} onCopy={handleCopy} />
+                      <AssetCard asset={asset} canDelete={canManage} busy={busyId === asset.id}
+                        onOpen={handleOpen} onCopy={handleCopy} onDelete={handleDelete} />
                     </motion.div>
                   ))}
 
@@ -549,7 +602,7 @@ export default function AssetLibrary() {
               )}
 
               {copiedId && (
-                <p className="text-[10px] text-green-400 mt-3">Asset link copied to clipboard.</p>
+                <p className="text-[10px] text-green-400 mt-3">Asset link copied to clipboard — it expires in 1 hour.</p>
               )}
             </div>
           </div>

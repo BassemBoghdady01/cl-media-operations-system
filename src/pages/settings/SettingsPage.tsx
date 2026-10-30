@@ -308,9 +308,12 @@ export default function SettingsPage() {
       className="p-4 sm:p-6 lg:p-8">
 
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-black text-white">Settings</h1>
-        <p className="text-slate-400 text-sm mt-1">Manage your agency profile and personal details</p>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-black text-white">Settings</h1>
+          <p className="text-slate-400 text-sm mt-1">Manage your agency profile and personal details</p>
+        </div>
+        <Link to="/app/onboarding" className="btn-secondary text-xs">Workspace setup checklist →</Link>
       </div>
 
       <div className="grid lg:grid-cols-4 gap-6">

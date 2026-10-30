@@ -100,7 +100,7 @@ export default function ClientLayout() {
 
         {/* Right: Notif + User */}
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/client/finance')}
+          <button onClick={() => navigate('/client/notifications')} aria-label="Notifications"
             className="relative w-10 h-10 lg:w-8 lg:h-8 rounded-xl flex items-center justify-center hover:bg-white/[0.06] transition-colors"
             style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
             <Bell className="w-4 h-4 text-slate-400" />
@@ -110,7 +110,7 @@ export default function ClientLayout() {
             )}
           </button>
 
-          <div className="flex items-center gap-2 cursor-pointer group">
+          <div className="flex items-center gap-2 group">
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
               style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
               {getInitials(user?.name ?? 'EZ')}

@@ -6,7 +6,7 @@
  * caller's session + users.* permission server-side and uses the service-role
  * key THERE ONLY. The browser never holds the service-role key.
  */
-import { db, orThrow, dstr, type Row } from './serviceCore'
+import { db, orThrow, dstr, type Row, requireRows } from './serviceCore'
 import { supabase } from '../lib/supabase'
 import type { Permission } from '../config/roles'
 
@@ -133,8 +133,9 @@ export const userService = {
     id: string,
     updates: { full_name?: string; department?: string | null; job_title?: string | null; color?: string }
   ): Promise<void> => {
-    const { error } = await db().from('profiles').update(updates).eq('id', id)
+    const { data: _rows, error } = await db().from('profiles').update(updates).eq('id', id).select('id')
     orThrow('userService.updateProfile', error)
+    requireRows('userService.updateProfile', _rows)
   },
 
   // ── Privileged operations → server-side admin API ──
@@ -246,9 +247,10 @@ export const userService = {
 
   /** Set the ACCOUNT MANAGER on the client record (also feeds scope). */
   assignClient: async (clientId: string, userId: string | null): Promise<void> => {
-    const { error } = await db()
-      .from('clients').update({ assigned_manager_id: userId }).eq('id', clientId)
+    const { data: _rows, error } = await db()
+      .from('clients').update({ assigned_manager_id: userId }).eq('id', clientId).select('id')
     orThrow('userService.assignClient', error)
+    requireRows('userService.assignClient', _rows)
   },
 
   /** Add/remove the user from a project's team_ids array. */
@@ -257,8 +259,9 @@ export const userService = {
     orThrow('userService.assignProject(read)', error)
     const team: string[] = (data as Row)?.team_ids ?? []
     const next = add ? Array.from(new Set([...team, userId])) : team.filter((t) => t !== userId)
-    const { error: upErr } = await db().from('projects').update({ team_ids: next }).eq('id', projectId)
+    const { data: _rows, error: upErr } = await db().from('projects').update({ team_ids: next }).eq('id', projectId).select('id')
     orThrow('userService.assignProject(write)', upErr)
+    requireRows('userService.assignProject(write)', _rows)
   },
 
   /** Stamp profiles.last_login_at for the signed-in user. */

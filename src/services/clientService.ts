@@ -2,7 +2,7 @@
  * Clients — production service. Real Supabase rows mapped to the app type.
  * No seed fallback: failures throw, absence returns empty.
  */
-import { db, orThrow, dstr, type Row } from './serviceCore'
+import { db, orThrow, dstr, type Row, requireRows } from './serviceCore'
 import type { Client } from '../types'
 
 export function mapClient(r: Row): Client {
@@ -75,7 +75,8 @@ export const clientService = {
     if (updates.accountManagerId !== undefined) patch.assigned_manager_id = updates.accountManagerId
     if (updates.portalAccess !== undefined) patch.portal_access_enabled = updates.portalAccess
     if (updates.notes !== undefined) patch.notes = updates.notes || null
-    const { error } = await db().from('clients').update(patch).eq('id', id)
+    const { data: _rows, error } = await db().from('clients').update(patch).eq('id', id).select('id')
     orThrow('clientService.update', error)
+    requireRows('clientService.update', _rows)
   },
 }

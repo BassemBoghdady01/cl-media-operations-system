@@ -1,7 +1,7 @@
 /**
  * Packages — production service. No seed fallback.
  */
-import { db, orThrow, dstr, type Row } from './serviceCore'
+import { db, orThrow, dstr, type Row, requireRows } from './serviceCore'
 import type { Package } from '../types'
 
 export function mapPackage(r: Row): Package {
@@ -81,9 +81,12 @@ export const packageService = {
     if (updates.includedShootingDays !== undefined) patch.included_shooting_days = updates.includedShootingDays
     if (updates.consumedShootingDays !== undefined) patch.consumed_shooting_days = updates.consumedShootingDays
     if (updates.renewalDate !== undefined) patch.renewal_date = updates.renewalDate || null
+    if (updates.extraVideoPrice !== undefined) patch.extra_video_price = updates.extraVideoPrice
+    if (updates.extraRevisionPrice !== undefined) patch.extra_revision_price = updates.extraRevisionPrice
     if (updates.status !== undefined) patch.status = updates.status
     if (updates.notes !== undefined) patch.notes = updates.notes
-    const { error } = await db().from('packages').update(patch).eq('id', id)
+    const { data: _rows, error } = await db().from('packages').update(patch).eq('id', id).select('id')
     orThrow('packageService.update', error)
+    requireRows('packageService.update', _rows)
   },
 }

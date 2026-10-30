@@ -7,7 +7,7 @@
  * paid) go through the SECURITY DEFINER RPCs from 009 — never two separate
  * client-side writes.
  */
-import { db, orThrow, dstr, type Row } from './serviceCore'
+import { db, orThrow, dstr, type Row, requireRows } from './serviceCore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -197,13 +197,15 @@ export const subscriptionService = {
   },
 
   update: async (id: string, updates: Partial<SubscriptionInput>): Promise<void> => {
-    const { error } = await db().from('client_subscriptions').update(updates).eq('id', id)
+    const { data: _rows, error } = await db().from('client_subscriptions').update(updates).eq('id', id).select('id')
     orThrow('subscriptionService.update', error)
+    requireRows('subscriptionService.update', _rows)
   },
 
   setStatus: async (id: string, status: SubscriptionStatus): Promise<void> => {
-    const { error } = await db().from('client_subscriptions').update({ status }).eq('id', id)
+    const { data: _rows, error } = await db().from('client_subscriptions').update({ status }).eq('id', id).select('id')
     orThrow('subscriptionService.setStatus', error)
+    requireRows('subscriptionService.setStatus', _rows)
   },
 
   // ── Cycles ──
@@ -253,9 +255,10 @@ export const subscriptionService = {
   },
 
   markCycleOverdue: async (cycleId: string): Promise<void> => {
-    const { error } = await db()
-      .from('subscription_cycles').update({ status: 'overdue' }).eq('id', cycleId)
+    const { data: _rows, error } = await db()
+      .from('subscription_cycles').update({ status: 'overdue' }).eq('id', cycleId).select('id')
     orThrow('subscriptionService.markCycleOverdue', error)
+    requireRows('subscriptionService.markCycleOverdue', _rows)
   },
 
   /** Create an invoice from a cycle and link it. */
@@ -277,11 +280,12 @@ export const subscriptionService = {
       .select('id').single()
     orThrow('subscriptionService.createInvoiceForCycle', error)
 
-    const { error: linkErr } = await db()
+    const { data: _rows, error: linkErr } = await db()
       .from('subscription_cycles')
       .update({ invoice_id: (data as Row).id, status: cycle.status === 'expected' ? 'invoiced' : cycle.status })
-      .eq('id', cycle.id)
+      .eq('id', cycle.id).select('id')
     orThrow('subscriptionService.linkInvoice', linkErr)
+    requireRows('subscriptionService.linkInvoice', _rows)
     return (data as Row).id
   },
 

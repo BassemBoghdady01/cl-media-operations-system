@@ -1,17 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft, Film, CheckCircle, XCircle, MessageSquare,
-  Download, Send, Lock, Play, FileText, Sparkles,
+  Download, Send, Lock, Play, FileText, Sparkles, Pencil, Upload, X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { videoService } from '../../services/videoService'
+import { storageService } from '../../services/storageService'
+import { userService, type ManagedUser } from '../../services/userService'
 import { notificationService } from '../../services/notificationService'
 import { toastSuccess, toastError } from '../../lib/toast'
+import { APP_CONFIG } from '../../config/app'
+import { normalizeRole, ROLES } from '../../config/roles'
 import { statusColors, priorityColors, platformLabels, timeAgo, getInitials } from '../../lib/utils'
-import type { Video, Comment } from '../../types'
+import type { Video, Comment, VideoStatus, VideoPlatform, VideoFormat } from '../../types'
 
 const pipeline = [
   'idea', 'script', 'shooting', 'editing', 'internal_review',
@@ -24,10 +28,172 @@ const pipelineLabels: Record<string, string> = {
   revision: 'Revision', approved: 'Approved', scheduled: 'Scheduled', posted: 'Posted',
 }
 
+const STATUSES: readonly VideoStatus[] = [
+  'idea', 'script', 'shooting', 'editing', 'internal_review',
+  'client_review', 'revision', 'approved', 'scheduled', 'posted', 'archived',
+]
+const PLATFORMS: readonly VideoPlatform[] = ['instagram', 'tiktok', 'youtube', 'facebook', 'linkedin']
+const FORMATS: readonly VideoFormat[] = ['reel', 'short', 'ad', 'story', 'longform', 'podcast']
+const PRIORITIES: readonly Video['priority'][] = ['low', 'medium', 'high', 'urgent']
+
+/** Matches the final-deliveries bucket's allowed MIME types. */
+const FINAL_ACCEPT = 'video/mp4,video/quicktime,application/zip,.mp4,.mov,.zip'
+
+interface EditVideoForm {
+  title: string
+  status: VideoStatus
+  priority: Video['priority']
+  platform: VideoPlatform
+  format: VideoFormat
+  assignedEditor: string
+  dueDate: string
+  postedUrl: string
+  notes: string
+}
+
+function EditVideoModal({
+  video, members, membersLoading, saving, error, onSubmit, onClose,
+}: {
+  video: Video
+  members: ManagedUser[]
+  membersLoading: boolean
+  saving: boolean
+  error: string | null
+  onSubmit: (form: EditVideoForm) => void
+  onClose: () => void
+}) {
+  const [form, setForm] = useState<EditVideoForm>({
+    title: video.title,
+    status: video.status,
+    priority: video.priority,
+    platform: video.platform,
+    format: video.format,
+    assignedEditor: video.assignedEditor ?? '',
+    dueDate: video.dueDate ?? '',
+    postedUrl: video.postedUrl ?? '',
+    notes: video.notes ?? '',
+  })
+  const set = (patch: Partial<EditVideoForm>) => setForm((f) => ({ ...f, ...patch }))
+  const valid = form.title.trim().length > 0
+  // Keep the current editor selectable even if they're no longer in the active list.
+  const editorMissing = !!video.assignedEditor && !members.some((m) => m.id === video.assignedEditor)
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+      onClick={() => { if (!saving) onClose() }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto">
+
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-base font-black text-white">Edit Video</h2>
+          <button onClick={onClose} aria-label="Close" disabled={saving}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all disabled:opacity-50">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Title</label>
+            <input className="input py-2 text-xs mt-1" value={form.title}
+              onChange={(e) => set({ title: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Status</label>
+              <select className="input py-2 text-xs mt-1" value={form.status}
+                onChange={(e) => set({ status: e.target.value as VideoStatus })}>
+                {STATUSES.map((st) => <option key={st} value={st}>{st.replace('_', ' ')}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Priority</label>
+              <select className="input py-2 text-xs mt-1" value={form.priority}
+                onChange={(e) => set({ priority: e.target.value as Video['priority'] })}>
+                {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Platform</label>
+              <select className="input py-2 text-xs mt-1" value={form.platform}
+                onChange={(e) => set({ platform: e.target.value as VideoPlatform })}>
+                {PLATFORMS.map((p) => <option key={p} value={p}>{platformLabels[p] ?? p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Format</label>
+              <select className="input py-2 text-xs mt-1" value={form.format}
+                onChange={(e) => set({ format: e.target.value as VideoFormat })}>
+                {FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Assigned Editor</label>
+              <select className="input py-2 text-xs mt-1" value={form.assignedEditor}
+                disabled={membersLoading}
+                onChange={(e) => set({ assignedEditor: e.target.value })}>
+                <option value="">{membersLoading ? 'Loading team…' : 'Unassigned'}</option>
+                {editorMissing && (
+                  <option value={video.assignedEditor}>{video.assignedEditorName ?? 'Current editor'}</option>
+                )}
+                {members.map((m) => <option key={m.id} value={m.id}>{m.full_name || m.email}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Due Date</label>
+              <input type="date" className="input py-2 text-xs mt-1" value={form.dueDate}
+                onChange={(e) => set({ dueDate: e.target.value })} />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Published URL (optional)</label>
+            <input type="url" className="input py-2 text-xs mt-1" placeholder="https://…"
+              value={form.postedUrl} onChange={(e) => set({ postedUrl: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Notes</label>
+            <textarea className="input py-2 text-xs mt-1 min-h-[72px]" value={form.notes}
+              onChange={(e) => set({ notes: e.target.value })} />
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-400 rounded-xl px-3 py-2"
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              {error}
+            </p>
+          )}
+
+          <button
+            className="btn-primary w-full justify-center text-xs py-2.5 disabled:opacity-50"
+            disabled={!valid || saving}
+            onClick={() => onSubmit(form)}>
+            {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function VideoDetail() {
   const { id } = useParams()
-  const { user, agency } = useAuth()
+  const { user, agency, hasPermission } = useAuth()
   const agencyId = user?.agencyId || agency?.id || ''
+  const canReview = hasPermission('videos.review')
+  const canManage = hasPermission('videos.manage')
 
   const [video, setVideo] = useState<Video | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
@@ -39,6 +205,19 @@ export default function VideoDetail() {
   const [posting, setPosting] = useState(false)
   const [acting, setActing] = useState(false)
   const [activeTab, setActiveTab] = useState<'comments' | 'script' | 'delivery'>('comments')
+
+  // Edit modal
+  const [showEdit, setShowEdit] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [members, setMembers] = useState<ManagedUser[]>([])
+  const [membersLoaded, setMembersLoaded] = useState(false)
+  const [membersLoading, setMembersLoading] = useState(false)
+
+  // Final delivery upload / open
+  const finalInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingFinal, setUploadingFinal] = useState(false)
+  const [openingFinal, setOpeningFinal] = useState(false)
 
   useEffect(() => {
     if (!id) {
@@ -104,8 +283,108 @@ export default function VideoDetail() {
     }
   }
 
+  const openEdit = async () => {
+    if (!canManage) return
+    setEditError(null)
+    setShowEdit(true)
+    if (membersLoaded || !agencyId) return
+    setMembersLoading(true)
+    try {
+      const rows = await userService.listUsers(agencyId)
+      setMembers(rows.filter((u) => normalizeRole(u.role) !== ROLES.CLIENT && u.status !== 'inactive'))
+      setMembersLoaded(true)
+    } catch (err) {
+      console.error('[VideoDetail] member load failed', err)
+      toastError('Could not load team members for the editor picker.')
+    } finally {
+      setMembersLoading(false)
+    }
+  }
+
+  const saveEdit = async (form: EditVideoForm) => {
+    if (!video || savingEdit) return
+    setSavingEdit(true)
+    setEditError(null)
+    const patch: Partial<Video> = {
+      title: form.title.trim(),
+      status: form.status,
+      priority: form.priority,
+      platform: form.platform,
+      format: form.format,
+      assignedEditor: form.assignedEditor || '',
+      dueDate: form.dueDate,
+      postedUrl: form.postedUrl.trim() || '',
+      notes: form.notes,
+    }
+    try {
+      await videoService.update(video.id, patch)
+      const editorName = form.assignedEditor
+        ? members.find((m) => m.id === form.assignedEditor)?.full_name
+          ?? (form.assignedEditor === video.assignedEditor ? video.assignedEditorName : undefined)
+        : undefined
+      setVideo({
+        ...video,
+        ...patch,
+        assignedEditor: form.assignedEditor || undefined,
+        assignedEditorName: editorName,
+        postedUrl: form.postedUrl.trim() || undefined,
+        notes: form.notes || undefined,
+      })
+      toastSuccess('Video updated.')
+      setShowEdit(false)
+    } catch (err) {
+      console.error('[VideoDetail] update failed', err)
+      const msg = err instanceof Error ? err.message : 'Could not save the video.'
+      setEditError(msg)
+      toastError(msg)
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  // Final delivery lives in the private final-deliveries bucket: upload stores
+  // the storage path; viewing goes through a 1-hour signed URL.
+  const uploadFinal = async (file: File) => {
+    if (!video || !canManage || uploadingFinal) return
+    setUploadingFinal(true)
+    const previous = video.finalUrl
+    try {
+      const { url } = await storageService.uploadFinalDelivery(
+        video.agencyId || agencyId, video.clientId, video.id, file,
+      )
+      await videoService.update(video.id, { finalUrl: url })
+      setVideo({ ...video, finalUrl: url })
+      toastSuccess('Final delivery uploaded.')
+      // Best-effort cleanup of the replaced file.
+      const prevPath = storageService.pathFromStored(APP_CONFIG.storage.finalDeliveries, previous)
+      if (prevPath && prevPath !== url) {
+        storageService.deleteFile(APP_CONFIG.storage.finalDeliveries, prevPath)
+          .catch((e) => console.warn('[VideoDetail] old final file cleanup failed', e))
+      }
+    } catch (err) {
+      console.error('[VideoDetail] final upload failed', err)
+      toastError(err instanceof Error ? `Upload failed: ${err.message}` : 'Upload failed.')
+    } finally {
+      setUploadingFinal(false)
+      if (finalInputRef.current) finalInputRef.current.value = ''
+    }
+  }
+
+  const openFinal = async () => {
+    if (!video?.finalUrl || openingFinal) return
+    setOpeningFinal(true)
+    try {
+      await storageService.openStoredFile(APP_CONFIG.storage.finalDeliveries, video.finalUrl)
+    } catch (err) {
+      console.error('[VideoDetail] open final failed', err)
+      toastError(err instanceof Error ? `Could not open the file: ${err.message}` : 'Could not open the file.')
+    } finally {
+      setOpeningFinal(false)
+    }
+  }
+
   const handleDecision = async (decision: 'approve' | 'revision') => {
-    if (!video || acting) return
+    if (!video || acting || !canReview) return
     setActing(true)
     try {
       const patch: Partial<Video> =
@@ -216,17 +495,17 @@ export default function VideoDetail() {
               <div className="absolute inset-0 opacity-20"
                 style={{ background: `radial-gradient(circle at 50% 50%, ${video.clientColor}, transparent)` }} />
               {video.finalUrl ? (
-                <motion.a
-                  href={video.finalUrl}
-                  target="_blank"
-                  rel="noreferrer"
+                <motion.button
+                  type="button"
+                  onClick={() => void openFinal()}
+                  disabled={openingFinal}
                   aria-label="Play video"
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
-                  className="w-16 h-16 rounded-full flex items-center justify-center shadow-2xl"
+                  className="w-16 h-16 rounded-full flex items-center justify-center shadow-2xl disabled:opacity-60"
                   style={{ background: 'rgba(59,130,246,0.9)', boxShadow: '0 0 40px rgba(59,130,246,0.4)' }}>
                   <Play className="w-7 h-7 text-white ml-1" fill="white" />
-                </motion.a>
+                </motion.button>
               ) : (
                 <div className="flex flex-col items-center gap-2">
                   <div className="w-16 h-16 rounded-full flex items-center justify-center"
@@ -249,7 +528,7 @@ export default function VideoDetail() {
 
             {/* Action bar */}
             <div className="flex flex-wrap items-center gap-3 px-4 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              {(video.status === 'client_review' || video.status === 'internal_review') && (
+              {canReview && (video.status === 'client_review' || video.status === 'internal_review') && (
                 <>
                   <button
                     className="btn-primary text-xs py-2 px-5 flex items-center gap-1.5 disabled:opacity-50"
@@ -267,9 +546,25 @@ export default function VideoDetail() {
                 </>
               )}
               {video.finalUrl && (
-                <a href={video.finalUrl} target="_blank" rel="noreferrer" className="btn-ghost text-xs inline-flex items-center gap-1.5">
-                  <Download className="w-3.5 h-3.5" /> Download Final
-                </a>
+                <button type="button" onClick={() => void openFinal()} disabled={openingFinal}
+                  className="btn-ghost text-xs inline-flex items-center gap-1.5 disabled:opacity-50">
+                  <Download className="w-3.5 h-3.5" /> {openingFinal ? 'Opening…' : 'Download Final'}
+                </button>
+              )}
+              {canManage && (
+                <>
+                  <input ref={finalInputRef} type="file" accept={FINAL_ACCEPT} className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadFinal(f) }} />
+                  <button type="button" onClick={() => finalInputRef.current?.click()} disabled={uploadingFinal}
+                    className="btn-ghost text-xs inline-flex items-center gap-1.5 disabled:opacity-50">
+                    <Upload className="w-3.5 h-3.5" />
+                    {uploadingFinal ? 'Uploading…' : video.finalUrl ? 'Replace Final' : 'Upload Final'}
+                  </button>
+                  <button type="button" onClick={() => void openEdit()}
+                    className="btn-secondary text-xs py-2 px-4 inline-flex items-center gap-1.5">
+                    <Pencil className="w-3.5 h-3.5" /> Edit
+                  </button>
+                </>
               )}
               <div className="ml-auto flex items-center gap-2 text-xs text-slate-500">
                 <span>{video.revisionCount} revisions</span>
@@ -531,11 +826,25 @@ export default function VideoDetail() {
           {video.notes && (
             <div className="glass-blue rounded-2xl p-5">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Notes</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">{video.notes}</p>
+              <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap">{video.notes}</p>
             </div>
           )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {showEdit && (
+          <EditVideoModal
+            video={video}
+            members={members}
+            membersLoading={membersLoading}
+            saving={savingEdit}
+            error={editError}
+            onSubmit={saveEdit}
+            onClose={() => setShowEdit(false)}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

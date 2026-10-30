@@ -4,6 +4,7 @@ import { FolderOpen, FileText, Image, Film, Music, Download } from 'lucide-react
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { assetService } from '../../services/assetService'
+import { toastError } from '../../lib/toast'
 import type { Asset } from '../../types'
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
@@ -32,6 +33,20 @@ export default function ClientAssets() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [activeFolder, setActiveFolder] = useState<string>('all')
+  const [openingId, setOpeningId] = useState<string | null>(null)
+
+  // Files live in a private bucket — open them through a 1-hour signed URL.
+  const download = async (asset: Asset) => {
+    setOpeningId(asset.id)
+    try {
+      await assetService.open(asset)
+    } catch (err) {
+      console.error('[ClientAssets] open failed', err)
+      toastError(err instanceof Error ? `Could not open the file: ${err.message}` : 'Could not open the file.')
+    } finally {
+      setOpeningId(null)
+    }
+  }
 
   useEffect(() => {
     if (!user) return
@@ -106,7 +121,7 @@ export default function ClientAssets() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                className="rounded-xl p-4 group flex items-center gap-3"
+                className="rounded-xl p-4 flex items-center gap-3"
                 style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{ background: `${TYPE_COLORS[asset.type] ?? '#64748B'}15`, color: TYPE_COLORS[asset.type] ?? '#64748B' }}>
@@ -124,16 +139,17 @@ export default function ClientAssets() {
                 {/* Download only exists when the asset has a real file URL —
                     no dead placeholder icon for files that cannot be fetched. */}
                 {asset.url && (
-                  <a
-                    href={asset.url}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => download(asset)}
+                    disabled={openingId === asset.id}
                     title={`Download ${asset.name}`}
-                    className="w-10 h-10 lg:w-7 lg:h-7 flex-shrink-0 rounded-lg flex items-center justify-center text-slate-600 hover:text-blue-400 transition-colors opacity-100 lg:opacity-0 group-hover:opacity-100"
+                    className="w-10 h-10 lg:w-7 lg:h-7 flex-shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-400 transition-colors disabled:opacity-50"
                     style={{ background: 'rgba(255,255,255,0.05)' }}>
-                    <Download className="w-3.5 h-3.5" />
-                  </a>
+                    {openingId === asset.id
+                      ? <div className="w-3 h-3 border-2 border-blue-500/30 border-t-blue-400 rounded-full animate-spin" />
+                      : <Download className="w-3.5 h-3.5" />}
+                  </button>
                 )}
               </motion.div>
             ))}

@@ -160,11 +160,13 @@ export default function Sidebar({
           )}
         </NavLink>
 
-        <NavLink to="/app/settings" onClick={onCloseMobile}
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-          <Settings className="w-4 h-4 flex-shrink-0" />
-          <span>Settings</span>
-        </NavLink>
+        {hasPermission('settings.view') && (
+          <NavLink to="/app/settings" onClick={onCloseMobile}
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <Settings className="w-4 h-4 flex-shrink-0" />
+            <span>Settings</span>
+          </NavLink>
+        )}
 
         {/* User */}
         <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>

@@ -16,7 +16,7 @@ import {
 } from '../../components/finance/FinanceKit'
 import PageErrorState from '../../components/system/PageErrorState'
 import {
-  partnerService, TX_LABELS, TX_DIRECTION, type Partner, type EffectiveShare, type PartnerBalance,
+  partnerService, TX_LABELS, TX_DIRECTION, MANUAL_TX_TYPES, type Partner, type EffectiveShare, type PartnerBalance,
   type PartnerTransaction, type ProfitDistribution, type PartnerTxType,
 } from '../../services/partnerService'
 import { financeService, isoDate, type FinanceAccount } from '../../services/financeService'
@@ -240,7 +240,7 @@ function TransactionForm({ partners, accounts, distributions, baseCurrency, onSa
           </Field>
           <Field label="Type">
             <select className="input py-2 text-xs" value={t.type} onChange={(e) => set({ type: e.target.value as PartnerTxType, distribution_id: null })}>
-              {(Object.keys(TX_LABELS) as PartnerTxType[]).map((k) => <option key={k} value={k}>{TX_LABELS[k]}</option>)}
+              {MANUAL_TX_TYPES.map((k) => <option key={k} value={k}>{TX_LABELS[k]}</option>)}
             </select>
           </Field>
           <Field label="Amount">
@@ -455,7 +455,10 @@ function PayDialog({ dist, accounts, onPaid, onClose }: {
   return (
     <Modal title={`Pay out — ${dist.title}`} onClose={onClose}>
       <div className="space-y-3">
-        <p className="text-xs text-slate-400">Records a payout for every partner's remaining share.</p>
+        <p className="text-xs text-slate-400">
+          Pays every partner's remaining share. If a partner took an advance (drawing) that hasn't been recovered yet,
+          that amount is settled first and only the rest is paid in cash — the advance is never deducted twice.
+        </p>
         <Field label="Paid from account">
           <select className="input py-2 text-xs" value={account} onChange={(e) => setAccount(e.target.value)}>
             <option value="">Not through an account</option>
@@ -501,7 +504,8 @@ function Statement({ partner, share, currency, txs, distributions, onClose }: {
     }
     for (const t of txs) {
       if (t.partner_id !== partner.id || t.currency !== currency) continue
-      if (t.type === 'profit_payout') items.push({ date: t.transaction_date, label: 'Payout', detail: t.notes ?? '', credit: 0, debit: t.amount, capital: 0 })
+      if (t.type === 'advance_offset') items.push({ date: t.transaction_date, label: 'Advance recovered', detail: `${formatMoney(t.amount, currency)} of the share settled against earlier drawings — no cash moved`, credit: 0, debit: 0, capital: 0 })
+      else if (t.type === 'profit_payout') items.push({ date: t.transaction_date, label: 'Payout', detail: t.notes ?? '', credit: 0, debit: t.amount, capital: 0 })
       else if (t.type === 'drawing') items.push({ date: t.transaction_date, label: 'Drawing', detail: t.notes ?? '', credit: 0, debit: t.amount, capital: 0 })
       else items.push({ date: t.transaction_date, label: TX_LABELS[t.type], detail: t.notes ?? '', credit: 0, debit: 0, capital: t.type === 'capital_contribution' ? t.amount : -t.amount })
     }
@@ -653,8 +657,12 @@ export default function PartnersPage() {
     catch (err) { toastError(errText(err, 'Could not remove — mark the partner as exited instead.')) }
   }
 
+  const [busy, setBusy] = useState(false)
   const act = async (fn: () => Promise<void>, ok: string) => {
+    if (busy) return
+    setBusy(true)
     try { await fn(); toastSuccess(ok); reload() } catch (err) { toastError(errText(err, 'Action failed.')) }
+    finally { setBusy(false) }
   }
 
   if (error) {
@@ -673,10 +681,12 @@ export default function PartnersPage() {
       <FinancePageHeader title="Partners" subtitle="Ownership, capital, drawings and profit sharing between the partners.">
         <CurrencyTabs currencies={currencies} value={currency} onChange={setCurrency} />
         {canManage && tab === 'distributions' && (
-          <button className="btn-primary text-sm" onClick={() => setShowDist(true)} disabled={partners.length === 0}><Plus className="w-4 h-4" /> New distribution</button>
+          <button className="btn-primary text-sm" onClick={() => setShowDist(true)} disabled={partners.length === 0}
+            title={partners.length === 0 ? 'Add the partners in Ownership first' : undefined}><Plus className="w-4 h-4" /> New distribution</button>
         )}
         {canManage && tab === 'transactions' && (
-          <button className="btn-primary text-sm" onClick={() => setShowTx(true)} disabled={partners.length === 0}><Plus className="w-4 h-4" /> Record money</button>
+          <button className="btn-primary text-sm" onClick={() => setShowTx(true)} disabled={partners.length === 0}
+            title={partners.length === 0 ? 'Add the partners in Ownership first' : undefined}><Plus className="w-4 h-4" /> Record money</button>
         )}
         {canManage && tab === 'ownership' && (
           <>
@@ -794,7 +804,8 @@ export default function PartnersPage() {
                 <div className="space-y-3">
                   {dists.map((d) => {
                     const open = openDist === d.id
-                    const paidFor = (pid: string) => txs.filter((t) => t.distribution_id === d.id && t.partner_id === pid).reduce((s, t) => s + t.amount, 0)
+                    const paidFor = (pid: string) => txs.filter((t) => t.distribution_id === d.id && t.partner_id === pid && t.type === 'profit_payout').reduce((s, t) => s + t.amount, 0)
+                    const offsetFor = (pid: string) => txs.filter((t) => t.distribution_id === d.id && t.partner_id === pid && t.type === 'advance_offset').reduce((s, t) => s + t.amount, 0)
                     return (
                       <div key={d.id} className="rounded-2xl" style={{ background: 'rgba(13,22,47,0.6)', border: '1px solid rgba(255,255,255,0.07)' }}>
                         <button className="w-full text-left p-4 flex flex-wrap items-center gap-3 justify-between" onClick={() => setOpenDist(open ? null : d.id)}>
@@ -808,19 +819,23 @@ export default function PartnersPage() {
                           {open && (
                             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                               <div className="px-4 pb-4">
-                                <DataTable minWidth={520} columns={[
+                                <DataTable minWidth={640} columns={[
                                   { key: 'p', label: 'Partner' }, { key: 's', label: 'Share', align: 'right' },
-                                  { key: 'a', label: 'Amount', align: 'right' }, { key: 'pd', label: 'Paid', align: 'right' }, { key: 'r', label: 'Remaining', align: 'right' },
+                                  { key: 'a', label: 'Amount', align: 'right' }, { key: 'o', label: 'Advance recovered', align: 'right' },
+                                  { key: 'pd', label: 'Paid in cash', align: 'right' }, { key: 'r', label: 'Remaining', align: 'right' },
                                 ]}>
                                   {d.lines.map((l) => {
                                     const paid = paidFor(l.partner_id)
+                                    const offset = offsetFor(l.partner_id)
+                                    const left = Math.max(l.amount - paid - offset, 0)
                                     return (
                                       <tr key={l.id} className="border-b border-white/[0.04]">
                                         <td className="py-2 text-xs text-slate-200">{name(l.partner_id)}</td>
                                         <td className="py-2 text-xs text-right text-slate-400">{pct(l.share_percent)}</td>
                                         <td className="py-2 text-xs text-right"><Money amount={l.amount} currency={d.currency} /></td>
+                                        <td className="py-2 text-xs text-right">{offset > 0 ? <Money amount={offset} currency={d.currency} /> : <span className="text-slate-600">—</span>}</td>
                                         <td className="py-2 text-xs text-right"><Money amount={paid} currency={d.currency} /></td>
-                                        <td className="py-2 text-xs text-right"><Money amount={Math.max(l.amount - paid, 0)} currency={d.currency} tone={l.amount - paid > 0.01 ? 'neg' : undefined} /></td>
+                                        <td className="py-2 text-xs text-right"><Money amount={left} currency={d.currency} tone={left > 0.01 ? 'neg' : undefined} /></td>
                                       </tr>
                                     )
                                   })}
@@ -834,7 +849,7 @@ export default function PartnersPage() {
                                       }}><Trash2 className="w-3.5 h-3.5" /> Cancel</button>
                                     )}
                                     {d.status === 'draft' && (
-                                      <button className="btn-primary text-xs" onClick={() => void act(() => partnerService.approveDistribution(d.id), 'Approved — partner balances updated.')}>
+                                      <button className="btn-primary text-xs" disabled={busy} onClick={() => void act(() => partnerService.approveDistribution(d.id), 'Approved — partner balances updated.')}>
                                         <CheckCircle2 className="w-3.5 h-3.5" /> Approve
                                       </button>
                                     )}
@@ -875,15 +890,21 @@ export default function PartnersPage() {
                         <td className="py-2.5 text-xs text-slate-200">{name(t.partner_id)}</td>
                         <td className="py-2.5 text-xs">
                           <span className="inline-flex items-center gap-1 text-slate-300">
-                            {dir === 'in' ? <ArrowDownLeft className="w-3 h-3 text-green-400" /> : <ArrowUpRight className="w-3 h-3 text-orange-400" />}
+                            {dir === 'in' ? <ArrowDownLeft className="w-3 h-3 text-green-400" />
+                              : dir === 'out' ? <ArrowUpRight className="w-3 h-3 text-orange-400" />
+                              : <Layers className="w-3 h-3 text-violet-400" />}
                             {TX_LABELS[t.type]}
                           </span>
                           {t.notes && <div className="text-[10px] text-slate-500 truncate max-w-[220px]">{t.notes}</div>}
                         </td>
                         <td className="py-2.5 text-xs text-slate-400">{accounts.find((a) => a.id === t.account_id)?.name ?? '—'}</td>
-                        <td className="py-2.5 text-xs text-right"><Money amount={dir === 'in' ? t.amount : -t.amount} currency={t.currency} tone="auto" /></td>
+                        <td className="py-2.5 text-xs text-right">
+                          {dir === 'none'
+                            ? <span className="text-slate-400" title="Settled against an earlier drawing — no cash moved">{formatMoney(t.amount, t.currency)}</span>
+                            : <Money amount={dir === 'in' ? t.amount : -t.amount} currency={t.currency} tone="auto" />}
+                        </td>
                         <td className="py-2.5 text-right">
-                          {canManage && (
+                          {canManage && t.type !== 'advance_offset' && !(t.type === 'profit_payout' && t.distribution_id) && (
                             <button aria-label="Delete" className="text-slate-600 hover:text-red-400" onClick={() => {
                               if (window.confirm('Delete this entry?')) void act(() => partnerService.deleteTransaction(t.id), 'Entry deleted.')
                             }}><Trash2 className="w-3.5 h-3.5" /></button>

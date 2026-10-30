@@ -2,7 +2,7 @@
  * Agency — production service. Reads/updates the agency row under RLS
  * ("Admins can update their agency"). Failures throw; pages surface them.
  */
-import { db, orThrow, type Row } from './serviceCore'
+import { db, orThrow, type Row, requireRows } from './serviceCore'
 
 export interface AgencyInfo {
   id: string
@@ -44,7 +44,8 @@ export const agencyService = {
     if (updates.website !== undefined) patch.website = updates.website || null
     if (updates.phone !== undefined) patch.phone = updates.phone || null
     if (updates.email !== undefined) patch.email = updates.email || null
-    const { error } = await db().from('agencies').update(patch).eq('id', id)
+    const { data: _rows, error } = await db().from('agencies').update(patch).eq('id', id).select('id')
     orThrow('agencyService.updateAgency', error)
+    requireRows('agencyService.updateAgency', _rows)
   },
 }

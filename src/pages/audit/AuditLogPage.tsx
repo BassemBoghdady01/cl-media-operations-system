@@ -5,6 +5,7 @@
  * API). RLS restricts it to holders of audit.view; nobody can edit entries.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
@@ -12,6 +13,8 @@ import {
   FinancePageHeader, Panel, FinanceSkeleton, EmptyState, DataTable,
 } from '../../components/finance/FinanceKit'
 import { auditService, type AuditLogRow, type AuditFilters } from '../../services/auditService'
+import { userService } from '../../services/userService'
+import { toastError } from '../../lib/toast'
 
 const PAGE_SIZE = 50
 
@@ -81,8 +84,10 @@ export default function AuditLogPage() {
   const [action, setAction] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [actorLabel, setActorLabel] = useState<string | null>(null)
 
-  const load = useCallback(async (pageIndex: number) => {
+  const load = useCallback(async (pageIndex: number, overrides: Partial<AuditFilters> = {}) => {
     if (!agencyId) return
     setLoading(true)
     setError(null)
@@ -95,6 +100,7 @@ export default function AuditLogPage() {
         to: to || undefined,
         limit: PAGE_SIZE,
         offset: pageIndex * PAGE_SIZE,
+        ...overrides,
       }
       const [res, types] = await Promise.all([
         auditService.list(agencyId, filters),
@@ -112,8 +118,43 @@ export default function AuditLogPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agencyId, actorEmail, entityType, action, from, to])
 
-  useEffect(() => { load(0) }, [agencyId]) // initial load only; filters apply on demand
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Initial load only; filters apply on demand. `?actor=<userId>` (from User
+  // Management → View activity) pre-filters to that user's entries.
+  useEffect(() => {
+    if (!agencyId) return
+    const actorId = searchParams.get('actor')
+    if (!actorId) { void load(0); return }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const u = await userService.getUser(actorId)
+        if (cancelled) return
+        if (u?.email) {
+          setActorEmail(u.email)
+          setActorLabel(u.full_name || u.email)
+          await load(0, { actorEmail: u.email })
+          return
+        }
+        toastError('That user could not be found — showing all activity.')
+      } catch (err) {
+        if (cancelled) return
+        console.error('[AuditLogPage] actor lookup failed', err)
+        toastError('Could not look up that user — showing all activity.')
+      }
+      if (!cancelled) await load(0)
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agencyId])
+
+  const clearActor = () => {
+    setActorLabel(null)
+    setActorEmail('')
+    const next = new URLSearchParams(searchParams)
+    next.delete('actor')
+    setSearchParams(next, { replace: true })
+    void load(0, { actorEmail: undefined })
+  }
 
   if (error) {
     return <PageErrorState title="We couldn't load the audit log" message={error} onRetry={() => load(page)} />
@@ -129,9 +170,15 @@ export default function AuditLogPage() {
       />
 
       <Panel className="mb-5">
+        {actorLabel && (
+          <div className="flex flex-wrap items-center gap-2 mb-3 text-xs text-slate-300">
+            <span>Showing activity for <span className="font-semibold text-white">{actorLabel}</span></span>
+            <button className="btn-ghost text-[11px] py-1 px-2" onClick={clearActor}>Show everyone</button>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           <input className="input text-xs py-2" placeholder="User email…"
-            value={actorEmail} onChange={(e) => setActorEmail(e.target.value)} />
+            value={actorEmail} onChange={(e) => { setActorEmail(e.target.value); setActorLabel(null) }} />
           <select className="input text-xs py-2" value={entityType} onChange={(e) => setEntityType(e.target.value)}>
             <option value="">All modules</option>
             {entityTypes.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}

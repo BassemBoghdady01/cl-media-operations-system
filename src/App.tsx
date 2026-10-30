@@ -192,12 +192,14 @@ export default function App() {
                 <Route path="package" element={<ClientPackage />} />
                 <Route path="finance" element={<ClientFinance />} />
                 <Route path="invoices" element={<ClientInvoices />} />
+                <Route path="notifications" element={<NotificationsPage />} />
               </Route>
             </Route>
           </Route>
 
           {/* ── Debug / diagnostics (public — remove in production) ── */}
-          <Route path="/debug/auth" element={<DebugAuthPage />} />
+          {/* Auth diagnostics: local development only, never in a production build. */}
+          {import.meta.env.DEV && <Route path="/debug/auth" element={<DebugAuthPage />} />}
 
           {/* ── Legacy redirects ────────────────────────────────────── */}
           <Route path="/portal" element={<Navigate to="/client" replace />} />

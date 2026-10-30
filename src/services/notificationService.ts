@@ -4,7 +4,7 @@
  * The cron endpoint and app events insert rows here; this service reads them
  * for the bell, the notifications page and the client portal header.
  */
-import { db, orThrow, type Row } from './serviceCore'
+import { db, orThrow, type Row, requireRows } from './serviceCore'
 import type { Notification } from '../types'
 
 function mapNotification(r: Row): Notification {
@@ -42,11 +42,12 @@ export const notificationService = {
   },
 
   markRead: async (id: string): Promise<void> => {
-    const { error } = await db()
+    const { data: _rows, error } = await db()
       .from('notifications')
       .update({ read_at: new Date().toISOString() })
-      .eq('id', id)
+      .eq('id', id).select('id')
     orThrow('notificationService.markRead', error)
+    requireRows('notificationService.markRead', _rows)
   },
 
   markAllRead: async (userId: string): Promise<void> => {

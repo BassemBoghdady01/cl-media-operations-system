@@ -415,8 +415,12 @@ export default function ReportsPage() {
                 { key: 'margin', label: 'Margin', align: 'right' },
               ]}>
                 {topClientsByRevenue.map((c) => (
-                  <tr key={c.client_id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
-                    <td className="py-3 text-white text-sm">{c.client_name}</td>
+                  <tr key={c.client_id} className={`border-b border-white/5 last:border-0 ${c.client_id ? 'hover:bg-white/[0.02]' : ''}`}>
+                    <td className="py-3 text-white text-sm">
+                      {c.client_id
+                        ? <Link to={`/app/clients/${c.client_id}`} className="hover:text-blue-300 transition-colors">{c.client_name}</Link>
+                        : c.client_name}
+                    </td>
                     <td className="py-3 text-right text-xs text-slate-300">{formatMoney(Number(c.revenue), c.currency)}</td>
                     <td className="py-3 text-right"><Money amount={Number(c.profit)} currency={c.currency} tone="auto" /></td>
                     <td className="py-3 text-right text-xs font-semibold text-slate-300">{formatPercent(Number(c.margin), 0)}</td>
@@ -458,7 +462,7 @@ export default function ReportsPage() {
               ]}>
                 {expenseRows.map((e) => (
                   <tr key={`${e.category_id ?? 'uncat'}-${e.category_name}`}
-                    className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                    className="border-b border-white/5 last:border-0">
                     <td className="py-3 text-sm">
                       <span className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: e.color }} />
@@ -511,6 +515,7 @@ export default function ReportsPage() {
         <ProfitabilityTable
           rows={clientRows.map((c) => ({
             id: c.client_id, name: c.client_name, status: null,
+            href: c.client_id ? `/app/clients/${c.client_id}` : undefined,
             revenue: Number(c.revenue), cost: Number(c.direct_cost),
             profit: Number(c.profit), margin: Number(c.margin), currency: c.currency,
           }))}
@@ -603,6 +608,8 @@ interface ProfitRow {
   id: string
   name: string
   subtitle?: string
+  /** In-app link for the row's entity, when it has a detail page. */
+  href?: string
   status: string | null
   revenue: number
   cost: number
@@ -635,9 +642,11 @@ function ProfitabilityTable({
           { key: 'margin', label: 'Margin', align: 'right' as const },
         ]}>
           {rows.map((r) => (
-            <tr key={r.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+            <tr key={r.id} className={`border-b border-white/5 last:border-0 ${r.href ? 'hover:bg-white/[0.02]' : ''}`}>
               <td className="py-3">
-                <span className="text-white text-sm">{r.name}</span>
+                {r.href
+                  ? <Link to={r.href} className="text-white text-sm hover:text-blue-300 transition-colors">{r.name}</Link>
+                  : <span className="text-white text-sm">{r.name}</span>}
                 {r.subtitle && <span className="block text-[11px] text-slate-500">{r.subtitle}</span>}
               </td>
               {hasStatus && (

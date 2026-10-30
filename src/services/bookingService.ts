@@ -1,7 +1,7 @@
 /**
  * Shooting bookings — production service. No seed fallback.
  */
-import { db, orThrow, dstr, type Row } from './serviceCore'
+import { db, orThrow, dstr, type Row, requireRows } from './serviceCore'
 import type { Booking } from '../types'
 
 function fmtTime(t: unknown): string {
@@ -87,7 +87,8 @@ export const bookingService = {
   },
 
   updateStatus: async (id: string, status: Booking['status']): Promise<void> => {
-    const { error } = await db().from('bookings').update({ status }).eq('id', id)
+    const { data: _rows, error } = await db().from('bookings').update({ status }).eq('id', id).select('id')
     orThrow('bookingService.updateStatus', error)
+    requireRows('bookingService.updateStatus', _rows)
   },
 }

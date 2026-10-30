@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Download } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
@@ -119,8 +120,12 @@ export default function ProfitabilityPage() {
                 { key: 'projects', label: 'Projects', align: 'right' },
               ]}>
                 {(rows as ClientProfitability[]).map((r) => (
-                  <tr key={r.client_id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
-                    <td className="py-3 text-white text-sm">{r.client_name}</td>
+                  <tr key={r.client_id} className={`border-b border-white/5 last:border-0 ${r.client_id ? 'hover:bg-white/[0.02]' : ''}`}>
+                    <td className="py-3 text-white text-sm">
+                      {r.client_id
+                        ? <Link to={`/app/clients/${r.client_id}`} className="hover:text-blue-300 transition-colors">{r.client_name}</Link>
+                        : r.client_name}
+                    </td>
                     <td className="py-3 text-right text-xs text-slate-300">{formatMoney(Number(r.revenue), r.currency)}</td>
                     <td className="py-3 text-right text-xs text-slate-400">{formatMoney(Number(r.direct_cost), r.currency)}</td>
                     <td className="py-3 text-right"><Money amount={Number(r.profit)} currency={r.currency} tone="auto" /></td>
@@ -143,7 +148,7 @@ export default function ProfitabilityPage() {
                 { key: 'margin', label: 'Margin', align: 'right' },
               ]}>
                 {(rows as ProjectProfitability[]).map((r) => (
-                  <tr key={r.project_id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                  <tr key={r.project_id} className="border-b border-white/5 last:border-0">
                     <td className="py-3 text-white text-sm">{r.project_name}</td>
                     <td className="py-3 text-xs text-slate-400">{r.client_name}</td>
                     <td className="py-3 text-xs text-slate-400 capitalize">{r.status}</td>
@@ -163,7 +168,7 @@ export default function ProfitabilityPage() {
                 { key: 'margin', label: 'Margin', align: 'right' },
               ]}>
                 {(rows as ServiceProfitability[]).map((r) => (
-                  <tr key={r.service_id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                  <tr key={r.service_id} className="border-b border-white/5 last:border-0">
                     <td className="py-3 text-white text-sm">{r.service_name}</td>
                     <td className="py-3 text-right text-xs text-slate-300">{formatMoney(Number(r.revenue), r.currency)}</td>
                     <td className="py-3 text-right text-xs text-slate-400">{formatMoney(Number(r.cost), r.currency)}</td>

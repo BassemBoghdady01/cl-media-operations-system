@@ -1,3 +1,4 @@
+import { requireRows } from './serviceCore'
 /**
  * EZ Marketing Agency — Finance Service
  *
@@ -349,6 +350,11 @@ export const PERIOD_LABELS: Record<PeriodKey, string> = {
   custom: 'Custom range',
 }
 
+/** Statuses that still carry an unsettled balance (status is derived by a DB trigger). */
+export const OUTSTANDING_STATUSES: TransactionStatus[] = [
+  'expected', 'pending', 'approved', 'partially_paid', 'overdue',
+]
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export const financeService = {
@@ -415,6 +421,10 @@ export const financeService = {
       from?: string
       to?: string
       search?: string
+      /** Only rows with no category (the month-close "uncategorised" check). */
+      uncategorised?: boolean
+      /** Only rows that still have a balance to settle. */
+      outstandingOnly?: boolean
       limit?: number
       offset?: number
     } = {}
@@ -437,6 +447,8 @@ export const financeService = {
     if (filters.from) q = q.gte('transaction_date', filters.from)
     if (filters.to) q = q.lte('transaction_date', filters.to)
     if (filters.search) q = q.ilike('title', `%${filters.search}%`)
+    if (filters.uncategorised) q = q.is('category_id', null)
+    if (filters.outstandingOnly) q = q.in('status', OUTSTANDING_STATUSES)
 
     const limit = filters.limit ?? 50
     const offset = filters.offset ?? 0
@@ -458,26 +470,29 @@ export const financeService = {
   },
 
   updateTransaction: async (id: string, updates: Partial<FinanceTransaction>): Promise<void> => {
-    const { error } = await db().from('finance_transactions').update(updates).eq('id', id)
+    const { data: _rows, error } = await db().from('finance_transactions').update(updates).eq('id', id).select('id')
     if (error) throw new FinanceError('updateTransaction', error)
+    requireRows('updateTransaction', _rows)
   },
 
   /** Soft delete — preserves the audit trail and closed-period totals. */
   archiveTransaction: async (id: string): Promise<void> => {
-    const { error } = await db()
+    const { data: _rows, error } = await db()
       .from('finance_transactions')
       .update({ deleted_at: new Date().toISOString(), status: 'cancelled' })
-      .eq('id', id)
+      .eq('id', id).select('id')
     if (error) throw new FinanceError('archiveTransaction', error)
+    requireRows('archiveTransaction', _rows)
   },
 
   recordPayment: async (id: string, amountPaid: number, paidAt?: string): Promise<void> => {
     // The DB trigger derives status from amount_paid, so we only send the amount.
-    const { error } = await db()
+    const { data: _rows, error } = await db()
       .from('finance_transactions')
       .update({ amount_paid: amountPaid, paid_at: paidAt ?? new Date().toISOString() })
-      .eq('id', id)
+      .eq('id', id).select('id')
     if (error) throw new FinanceError('recordPayment', error)
+    requireRows('recordPayment', _rows)
   },
 
   // ── Configuration ──
@@ -513,14 +528,16 @@ export const financeService = {
   },
 
   updateAccount: async (id: string, updates: Partial<FinanceAccount>): Promise<void> => {
-    const { error } = await db().from('finance_accounts').update(updates).eq('id', id)
+    const { data: _rows, error } = await db().from('finance_accounts').update(updates).eq('id', id).select('id')
     if (error) throw new FinanceError('updateAccount', error)
+    requireRows('updateAccount', _rows)
   },
 
   /** Accounts are never hard-deleted — the ledger references them. */
   archiveAccount: async (id: string): Promise<void> => {
-    const { error } = await db().from('finance_accounts').update({ status: 'archived' }).eq('id', id)
+    const { data: _rows, error } = await db().from('finance_accounts').update({ status: 'archived' }).eq('id', id).select('id')
     if (error) throw new FinanceError('archiveAccount', error)
+    requireRows('archiveAccount', _rows)
   },
 
   createCategory: async (payload: Partial<FinanceCategory>): Promise<FinanceCategory> => {
@@ -530,13 +547,15 @@ export const financeService = {
   },
 
   updateCategory: async (id: string, updates: Partial<FinanceCategory>): Promise<void> => {
-    const { error } = await db().from('finance_categories').update(updates).eq('id', id)
+    const { data: _rows, error } = await db().from('finance_categories').update(updates).eq('id', id).select('id')
     if (error) throw new FinanceError('updateCategory', error)
+    requireRows('updateCategory', _rows)
   },
 
   archiveCategory: async (id: string): Promise<void> => {
-    const { error } = await db().from('finance_categories').update({ status: 'archived' }).eq('id', id)
+    const { data: _rows, error } = await db().from('finance_categories').update({ status: 'archived' }).eq('id', id).select('id')
     if (error) throw new FinanceError('archiveCategory', error)
+    requireRows('archiveCategory', _rows)
   },
 
   createAgencyService: async (payload: Partial<AgencyService>): Promise<AgencyService> => {
@@ -546,13 +565,15 @@ export const financeService = {
   },
 
   updateAgencyService: async (id: string, updates: Partial<AgencyService>): Promise<void> => {
-    const { error } = await db().from('agency_services').update(updates).eq('id', id)
+    const { data: _rows, error } = await db().from('agency_services').update(updates).eq('id', id).select('id')
     if (error) throw new FinanceError('updateAgencyService', error)
+    requireRows('updateAgencyService', _rows)
   },
 
   archiveAgencyService: async (id: string): Promise<void> => {
-    const { error } = await db().from('agency_services').update({ status: 'archived' }).eq('id', id)
+    const { data: _rows, error } = await db().from('agency_services').update({ status: 'archived' }).eq('id', id).select('id')
     if (error) throw new FinanceError('archiveAgencyService', error)
+    requireRows('archiveAgencyService', _rows)
   },
 
   // ── Cash flow ──
@@ -592,8 +613,9 @@ export const financeService = {
   },
 
   updateRecurringExpense: async (id: string, updates: Partial<RecurringExpense>): Promise<void> => {
-    const { error } = await db().from('recurring_expenses').update(updates).eq('id', id)
+    const { data: _rows, error } = await db().from('recurring_expenses').update(updates).eq('id', id).select('id')
     if (error) throw new FinanceError('updateRecurringExpense', error)
+    requireRows('updateRecurringExpense', _rows)
   },
 
   // ── Expense approval workflow ──
@@ -609,9 +631,10 @@ export const financeService = {
   },
 
   submitForApproval: async (id: string): Promise<void> => {
-    const { error } = await db()
-      .from('finance_transactions').update({ status: 'pending' }).eq('id', id)
+    const { data: _rows, error } = await db()
+      .from('finance_transactions').update({ status: 'pending' }).eq('id', id).select('id')
     if (error) throw new FinanceError('submitForApproval', error)
+    requireRows('submitForApproval', _rows)
   },
 
   /** Permission-checked in the database (finance.approve_expenses). */

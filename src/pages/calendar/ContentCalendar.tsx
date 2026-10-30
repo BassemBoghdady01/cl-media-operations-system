@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Plus, Clock, X } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ChevronLeft, ChevronRight, Plus, Clock, X, Trash2, Ban } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { calendarService, type CalendarItem } from '../../services/calendarService'
@@ -29,6 +30,160 @@ interface CalendarEntry {
   platform: string
   status: string
   date: string // YYYY-MM-DD
+  /** Set for content_calendar rows (editable); absent for scheduled videos. */
+  calendarId?: string
+  /** Set for scheduled videos — they're edited from the video's own page. */
+  videoId?: string
+}
+
+/** ISO timestamp → value for an <input type="datetime-local"> in local time. */
+function toLocalInput(iso: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+type PostStatus = CalendarItem['status']
+const POST_STATUSES: PostStatus[] = ['draft', 'scheduled', 'posted', 'cancelled']
+
+interface EditPostForm {
+  title: string
+  platform: string
+  scheduledAt: string // datetime-local value
+  status: PostStatus
+  caption: string
+  publishedUrl: string
+  notes: string
+}
+
+function EditPostModal({
+  item, busy, error, onSave, onCancelPost, onDelete, onClose,
+}: {
+  item: CalendarItem
+  busy: boolean
+  error: string | null
+  onSave: (form: EditPostForm) => void
+  onCancelPost: () => void
+  onDelete: () => void
+  onClose: () => void
+}) {
+  const [form, setForm] = useState<EditPostForm>({
+    title: item.title,
+    platform: item.platform,
+    scheduledAt: toLocalInput(item.scheduledAt),
+    status: item.status,
+    caption: item.caption ?? '',
+    publishedUrl: item.publishedUrl ?? '',
+    notes: item.notes ?? '',
+  })
+  const set = (patch: Partial<EditPostForm>) => setForm((f) => ({ ...f, ...patch }))
+  const valid = form.title.trim() && form.platform && form.scheduledAt
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+      onClick={() => { if (!busy) onClose() }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto">
+
+        <div className="flex items-center justify-between mb-5">
+          <div className="min-w-0">
+            <h2 className="text-base font-black text-white">Edit Post</h2>
+            {item.clientName && <p className="text-[11px] text-slate-500 truncate">{item.clientName}</p>}
+          </div>
+          <button onClick={onClose} disabled={busy} aria-label="Close"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all disabled:opacity-50">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Title</label>
+            <input className="input py-2 text-xs mt-1" value={form.title}
+              onChange={(e) => set({ title: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Platform</label>
+              <select className="input py-2 text-xs mt-1 capitalize" value={form.platform}
+                onChange={(e) => set({ platform: e.target.value })}>
+                {!PLATFORMS[form.platform] && <option value={form.platform}>{form.platform}</option>}
+                {Object.keys(PLATFORMS).map((p) => (
+                  <option key={p} value={p} className="capitalize">{p}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Status</label>
+              <select className="input py-2 text-xs mt-1 capitalize" value={form.status}
+                onChange={(e) => set({ status: e.target.value as PostStatus })}>
+                {POST_STATUSES.map((st) => <option key={st} value={st} className="capitalize">{st}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Date & Time</label>
+            <input type="datetime-local" className="input py-2 text-xs mt-1" value={form.scheduledAt}
+              onChange={(e) => set({ scheduledAt: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Caption</label>
+            <textarea className="input py-2 text-xs mt-1 min-h-[64px]" value={form.caption}
+              onChange={(e) => set({ caption: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Published URL (optional)</label>
+            <input type="url" className="input py-2 text-xs mt-1" placeholder="https://…" value={form.publishedUrl}
+              onChange={(e) => set({ publishedUrl: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Notes</label>
+            <textarea className="input py-2 text-xs mt-1 min-h-[56px]" value={form.notes}
+              onChange={(e) => set({ notes: e.target.value })} />
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-400 rounded-xl px-3 py-2"
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              {error}
+            </p>
+          )}
+
+          <button
+            className="btn-primary w-full justify-center text-xs py-2.5 disabled:opacity-50"
+            disabled={!valid || busy}
+            onClick={() => onSave(form)}>
+            {busy ? 'Saving…' : 'Save Changes'}
+          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button className="btn-secondary justify-center text-xs py-2 disabled:opacity-50"
+              disabled={busy || item.status === 'cancelled'}
+              title={item.status === 'cancelled' ? 'This post is already cancelled' : 'Cancel this post'}
+              onClick={onCancelPost}>
+              <Ban className="w-3.5 h-3.5" /> Cancel Post
+            </button>
+            <button className="btn-secondary justify-center text-xs py-2 disabled:opacity-50"
+              style={{ color: '#FCA5A5', borderColor: 'rgba(239,68,68,0.3)' }}
+              disabled={busy}
+              onClick={onDelete}>
+              <Trash2 className="w-3.5 h-3.5" /> Delete
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
 }
 
 function getDaysInMonth(year: number, month: number) {
@@ -171,6 +326,7 @@ export default function ContentCalendar() {
   const { user, agency, hasPermission } = useAuth()
   const agencyId = user?.agencyId || agency?.id || ''
   const canManage = hasPermission('calendar.manage')
+  const navigate = useNavigate()
 
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
@@ -191,6 +347,10 @@ export default function ContentCalendar() {
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+
+  const [editing, setEditing] = useState<CalendarItem | null>(null)
+  const [editBusy, setEditBusy] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!agencyId) {
@@ -248,6 +408,82 @@ export default function ContentCalendar() {
     }
   }
 
+  const openEdit = (entry: CalendarEntry) => {
+    if (!canManage || !entry.calendarId) return
+    const item = calendarItems.find((c) => c.id === entry.calendarId)
+    if (!item) return
+    setEditError(null)
+    setEditing(item)
+  }
+
+  const savePost = async (form: EditPostForm) => {
+    if (!editing) return
+    setEditBusy(true)
+    setEditError(null)
+    try {
+      const updates: Partial<CalendarItem> = {
+        title: form.title.trim(),
+        platform: form.platform,
+        scheduledAt: new Date(form.scheduledAt).toISOString(),
+        status: form.status,
+        caption: form.caption.trim(),
+        publishedUrl: form.publishedUrl.trim(),
+        notes: form.notes.trim(),
+      }
+      await calendarService.update(editing.id, updates)
+      setCalendarItems((prev) => prev.map((c) => (c.id === editing.id ? { ...c, ...updates } : c)))
+      toastSuccess(form.status === 'cancelled' ? 'Post cancelled.' : 'Post updated.')
+      setEditing(null)
+    } catch (err) {
+      console.error('[ContentCalendar] update failed', err)
+      const msg = err instanceof Error ? err.message : 'Could not update the post.'
+      setEditError(msg)
+      toastError(msg)
+    } finally {
+      setEditBusy(false)
+    }
+  }
+
+  const cancelPost = async () => {
+    if (!editing) return
+    if (!window.confirm(`Cancel "${editing.title}"? It will be removed from the calendar view.`)) return
+    setEditBusy(true)
+    setEditError(null)
+    try {
+      await calendarService.update(editing.id, { status: 'cancelled' })
+      setCalendarItems((prev) => prev.map((c) => (c.id === editing.id ? { ...c, status: 'cancelled' } : c)))
+      toastSuccess('Post cancelled.')
+      setEditing(null)
+    } catch (err) {
+      console.error('[ContentCalendar] cancel failed', err)
+      const msg = err instanceof Error ? err.message : 'Could not cancel the post.'
+      setEditError(msg)
+      toastError(msg)
+    } finally {
+      setEditBusy(false)
+    }
+  }
+
+  const deletePost = async () => {
+    if (!editing) return
+    if (!window.confirm(`Delete "${editing.title}" permanently? This can't be undone.`)) return
+    setEditBusy(true)
+    setEditError(null)
+    try {
+      await calendarService.delete(editing.id)
+      setCalendarItems((prev) => prev.filter((c) => c.id !== editing.id))
+      toastSuccess('Post deleted.')
+      setEditing(null)
+    } catch (err) {
+      console.error('[ContentCalendar] delete failed', err)
+      const msg = err instanceof Error ? err.message : 'Could not delete the post.'
+      setEditError(msg)
+      toastError(msg)
+    } finally {
+      setEditBusy(false)
+    }
+  }
+
   // Merge: content_calendar rows are the primary source; scheduled videos that
   // are not already linked to a calendar entry (via videoId) are added on top.
   const entries = useMemo<CalendarEntry[]>(() => {
@@ -261,6 +497,7 @@ export default function ContentCalendar() {
         platform: c.platform,
         status: c.status,
         date: c.scheduledAt.slice(0, 10),
+        calendarId: c.id,
       }))
     const linkedVideoIds = new Set(
       calendarItems.map((c) => c.videoId).filter((id): id is string => !!id)
@@ -275,6 +512,7 @@ export default function ContentCalendar() {
         platform: v.platform,
         status: v.status,
         date: (v.scheduledDate as string).slice(0, 10),
+        videoId: v.id,
       }))
     return [...fromCalendar, ...fromVideos]
   }, [calendarItems, videos])
@@ -308,13 +546,12 @@ export default function ContentCalendar() {
     else shiftWeek(7)
   }
 
+  const matchesFilters = (e: CalendarEntry) =>
+    (selectedClient === 'All' || e.clientName === selectedClient) &&
+    (selectedPlatform === 'All' || e.platform === selectedPlatform)
+
   const getEntriesForDate = (dateStr: string) =>
-    entries.filter((e) => {
-      const match = e.date === dateStr
-      const matchClient = selectedClient === 'All' || e.clientName === selectedClient
-      const matchPlatform = selectedPlatform === 'All' || e.platform === selectedPlatform
-      return match && matchClient && matchPlatform
-    })
+    entries.filter((e) => e.date === dateStr && matchesFilters(e))
 
   const daysInMonth = getDaysInMonth(year, month)
   const firstDay = getFirstDayOfMonth(year, month)
@@ -344,7 +581,7 @@ export default function ContentCalendar() {
   // Upcoming posts for sidebar
   const todayStr = toDateStr(today)
   const upcoming = entries
-    .filter((e) => e.date >= todayStr)
+    .filter((e) => e.date >= todayStr && matchesFilters(e))
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 6)
 
@@ -497,16 +734,17 @@ export default function ContentCalendar() {
                     {selectedEntries.map((e) => {
                       const sc = statusColors[e.status]
                       const pc = PLATFORMS[e.platform]
-                      return (
-                        <div key={e.id} className="flex items-center gap-3 p-3.5 rounded-xl"
-                          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      const rowBody = (
+                        <>
                           <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
                             style={{ background: e.clientColor }}>
                             {getInitials(e.clientName)}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-white truncate">{e.title}</p>
-                            <p className="text-[10px] text-slate-500">{e.clientName} · {e.platform}</p>
+                            <p className="text-[10px] text-slate-500">
+                              {e.clientName} · {e.platform}{e.videoId ? ' · from video pipeline' : ''}
+                            </p>
                           </div>
                           <div className="flex items-center gap-2">
                             <div className="w-2 h-2 rounded-full" style={{ background: pc?.color ?? '#64748B' }} />
@@ -514,7 +752,28 @@ export default function ContentCalendar() {
                               {e.status.replace('_', ' ')}
                             </span>
                           </div>
-                        </div>
+                        </>
+                      )
+                      const rowClass = 'w-full text-left flex items-center gap-3 p-3.5 rounded-xl'
+                      const rowStyle = { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }
+                      if (e.videoId) {
+                        return (
+                          <Link key={e.id} to={`/app/pipeline/${e.videoId}`}
+                            className={`${rowClass} hover:bg-white/[0.05] transition-colors`} style={rowStyle}>
+                            {rowBody}
+                          </Link>
+                        )
+                      }
+                      if (canManage && e.calendarId) {
+                        return (
+                          <button key={e.id} type="button" onClick={() => openEdit(e)} title="Edit post"
+                            className={`${rowClass} hover:bg-white/[0.05] transition-colors`} style={rowStyle}>
+                            {rowBody}
+                          </button>
+                        )
+                      }
+                      return (
+                        <div key={e.id} className={rowClass} style={rowStyle}>{rowBody}</div>
                       )
                     })}
                   </div>
@@ -529,13 +788,28 @@ export default function ContentCalendar() {
                 <div className="space-y-3">
                   {upcoming.map((e, i) => {
                     const pc = PLATFORMS[e.platform]
+                    const editable = canManage && !!e.calendarId
+                    const clickable = editable || !!e.videoId
                     return (
                       <motion.div
                         key={e.id}
                         initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.07 }}
-                        className="flex gap-3">
+                        role={clickable ? 'button' : undefined}
+                        tabIndex={clickable ? 0 : undefined}
+                        title={editable ? 'Edit post' : e.videoId ? 'Open video' : undefined}
+                        onClick={clickable ? () => {
+                          if (editable) openEdit(e)
+                          else if (e.videoId) navigate(`/app/pipeline/${e.videoId}`)
+                        } : undefined}
+                        onKeyDown={clickable ? (ev) => {
+                          if (ev.key !== 'Enter' && ev.key !== ' ') return
+                          ev.preventDefault()
+                          if (editable) openEdit(e)
+                          else if (e.videoId) navigate(`/app/pipeline/${e.videoId}`)
+                        } : undefined}
+                        className={`flex gap-3 rounded-lg ${clickable ? 'cursor-pointer hover:bg-white/[0.03] -mx-1.5 px-1.5 py-1 transition-colors' : ''}`}>
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0"
                           style={{ background: `${pc?.color ?? '#64748B'}20`, color: pc?.color ?? '#94A3B8' }}>
                           {pc?.short ?? e.platform.slice(0, 2).toUpperCase()}
@@ -552,7 +826,9 @@ export default function ContentCalendar() {
                     )
                   })}
                   {upcoming.length === 0 && (
-                    <p className="text-xs text-slate-600 text-center py-4">No upcoming posts.</p>
+                    <p className="text-xs text-slate-600 text-center py-4">
+                      {selectedClient !== 'All' || selectedPlatform !== 'All' ? 'No upcoming posts match these filters.' : 'No upcoming posts.'}
+                    </p>
                   )}
                 </div>
               </div>
@@ -590,6 +866,18 @@ export default function ContentCalendar() {
             error={createError}
             onSubmit={createPost}
             onClose={() => setShowCreate(false)}
+          />
+        )}
+        {editing && (
+          <EditPostModal
+            key={editing.id}
+            item={editing}
+            busy={editBusy}
+            error={editError}
+            onSave={savePost}
+            onCancelPost={cancelPost}
+            onDelete={deletePost}
+            onClose={() => setEditing(null)}
           />
         )}
       </AnimatePresence>

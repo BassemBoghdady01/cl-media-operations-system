@@ -8,7 +8,7 @@
  *   post_payroll_run   → writes approved ledger rows (skips already-posted)
  *   mark_payroll_paid  → posts if needed, then settles everything. Idempotent.
  */
-import { db, orThrow, dstr, type Row } from './serviceCore'
+import { db, orThrow, dstr, type Row, requireRows } from './serviceCore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -145,8 +145,9 @@ export const payrollService = {
   }): Promise<void> => {
     const { id, ...rest } = payload
     if (id) {
-      const { error } = await db().from('employee_compensation').update(rest).eq('id', id)
+      const { data: _rows, error } = await db().from('employee_compensation').update(rest).eq('id', id).select('id')
       orThrow('payrollService.updateCompensation', error)
+      requireRows('payrollService.updateCompensation', _rows)
     } else {
       const { error } = await db().from('employee_compensation').insert(rest)
       orThrow('payrollService.createCompensation', error)
@@ -193,8 +194,9 @@ export const payrollService = {
     itemId: string,
     updates: { bonus?: number; allowances?: number; deductions?: number; notes?: string | null; status?: PayrollItem['status'] }
   ): Promise<void> => {
-    const { error } = await db().from('payroll_items').update(updates).eq('id', itemId)
+    const { data: _rows, error } = await db().from('payroll_items').update(updates).eq('id', itemId).select('id')
     orThrow('payrollService.updateItem', error)
+    requireRows('payrollService.updateItem', _rows)
   },
 
   setRunStatus: async (runId: string, status: PayrollRunStatus, userId?: string): Promise<void> => {
@@ -203,8 +205,9 @@ export const payrollService = {
       patch.approved_by = userId ?? null
       patch.approved_at = new Date().toISOString()
     }
-    const { error } = await db().from('payroll_runs').update(patch).eq('id', runId)
+    const { data: _rows, error } = await db().from('payroll_runs').update(patch).eq('id', runId).select('id')
     orThrow('payrollService.setRunStatus', error)
+    requireRows('payrollService.setRunStatus', _rows)
   },
 
   /**

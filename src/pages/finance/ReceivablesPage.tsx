@@ -4,7 +4,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Download } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Download, Banknote } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import {
@@ -17,6 +18,7 @@ import { financeService, type ReceivableRow, type UpcomingRow } from '../../serv
 export default function ReceivablesPage() {
   const { user, agency, hasPermission } = useAuth()
   const agencyId = user?.agencyId || agency?.id || ''
+  const canManage = hasPermission('finance.manage')
 
   const [rows, setRows] = useState<ReceivableRow[]>([])
   const [upcoming, setUpcoming] = useState<UpcomingRow[]>([])
@@ -97,10 +99,15 @@ export default function ReceivablesPage() {
                 { key: 'overdue', label: 'Overdue', align: 'right' },
                 { key: 'oldest', label: 'Oldest due' },
                 { key: 'age', label: 'Days late', align: 'right' },
+                { key: 'actions', label: '', align: 'right' },
               ]}>
                 {scoped.map((r) => (
-                  <tr key={r.client_id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
-                    <td className="py-3 text-white text-sm">{r.client_name}</td>
+                  <tr key={r.client_id} className="border-b border-white/5 last:border-0">
+                    <td className="py-3 text-white text-sm">
+                      {r.client_id
+                        ? <Link to={`/app/clients/${r.client_id}`} className="hover:text-blue-300 transition-colors">{r.client_name}</Link>
+                        : r.client_name}
+                    </td>
                     <td className="py-3 text-right text-xs text-slate-400">{formatMoney(Number(r.total_billed), r.currency)}</td>
                     <td className="py-3 text-right text-xs text-slate-400">{formatMoney(Number(r.total_paid), r.currency)}</td>
                     <td className="py-3 text-right"><Money amount={Number(r.outstanding)} currency={r.currency} /></td>
@@ -114,6 +121,18 @@ export default function ReceivablesPage() {
                       {r.days_overdue > 0
                         ? <span className="text-red-400 font-semibold">{r.days_overdue}</span>
                         : <span className="text-slate-600">—</span>}
+                    </td>
+                    <td className="py-3 pl-3 text-right">
+                      {/* Receivables are per-client aggregates, so this opens the
+                          client's outstanding revenue items where each one can be settled. */}
+                      {r.client_id && (
+                        <Link
+                          to={`/app/finance/revenue?client=${encodeURIComponent(r.client_id)}&outstanding=1`}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-green-400 bg-green-500/10 hover:bg-green-500/20 transition-colors whitespace-nowrap">
+                          <Banknote className="w-3 h-3" />
+                          {canManage ? 'Record payment' : `View items (${r.open_items})`}
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 ))}

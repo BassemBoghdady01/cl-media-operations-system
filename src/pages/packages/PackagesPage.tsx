@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, Plus, TrendingUp, Film, AlertTriangle, X } from 'lucide-react'
+import { Package, Plus, TrendingUp, Film, AlertTriangle, X, Pencil } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { packageService } from '../../services/packageService'
@@ -30,15 +30,20 @@ function UsageBar({ label, used, total, color }: { label: string; used: number; 
   )
 }
 
-function PackageCard({ pkg, clientColor }: { pkg: PkgType; clientColor: string }) {
+function PackageCard({ pkg, clientColor, onEdit }: { pkg: PkgType; clientColor: string; onEdit?: () => void }) {
   const videoPct = pkg.includedVideos > 0 ? Math.round((pkg.consumedVideos / pkg.includedVideos) * 100) : 0
   const isAlmostFull = videoPct >= 85
   const isFull = videoPct >= 100
 
   return (
     <motion.div
-      whileHover={{ y: -3 }}
-      className="glass-blue rounded-2xl p-6 relative overflow-hidden">
+      whileHover={onEdit ? { y: -3 } : undefined}
+      onClick={onEdit}
+      role={onEdit ? 'button' : undefined}
+      tabIndex={onEdit ? 0 : undefined}
+      title={onEdit ? 'Edit package' : undefined}
+      onKeyDown={onEdit ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit() } } : undefined}
+      className={`glass-blue rounded-2xl p-6 relative overflow-hidden ${onEdit ? 'cursor-pointer' : ''}`}>
       {/* Glow for alerts */}
       {isAlmostFull && (
         <div className="absolute inset-0 rounded-2xl pointer-events-none"
@@ -54,7 +59,10 @@ function PackageCard({ pkg, clientColor }: { pkg: PkgType; clientColor: string }
           </div>
           <div>
             <h3 className="text-sm font-bold text-white">{pkg.clientName || '—'}</h3>
-            <p className="text-[11px] text-slate-500">{pkg.name}</p>
+            <p className="text-[11px] text-slate-500">
+              {pkg.name}
+              {pkg.status !== 'active' && <span className="ml-1.5 capitalize text-amber-400">· {pkg.status}</span>}
+            </p>
           </div>
         </div>
         <div className="text-right">
@@ -100,8 +108,159 @@ function PackageCard({ pkg, clientColor }: { pkg: PkgType; clientColor: string }
         <span>{pkg.renewalDate ? `Renews ${formatDate(pkg.renewalDate)}` : 'No renewal date set'}</span>
         <div className="flex items-center gap-3">
           <span>+{formatCurrency(pkg.extraVideoPrice)}/extra video</span>
+          {onEdit && (
+            <span className="inline-flex items-center gap-1 text-blue-400 font-semibold">
+              <Pencil className="w-3 h-3" /> Edit
+            </span>
+          )}
         </div>
       </div>
+    </motion.div>
+  )
+}
+
+interface EditPackageForm {
+  name: string
+  status: PkgType['status']
+  monthlyPrice: string
+  includedVideos: string
+  consumedVideos: string
+  includedRevisions: string
+  consumedRevisions: string
+  includedShootingDays: string
+  consumedShootingDays: string
+  extraVideoPrice: string
+  extraRevisionPrice: string
+  renewalDate: string
+  notes: string
+}
+
+const isNonNegNumber = (v: string) => v !== '' && Number.isFinite(Number(v)) && Number(v) >= 0
+
+function EditPackageModal({
+  pkg, saving, error, onSubmit, onClose,
+}: {
+  pkg: PkgType
+  saving: boolean
+  error: string | null
+  onSubmit: (form: EditPackageForm) => void
+  onClose: () => void
+}) {
+  const [form, setForm] = useState<EditPackageForm>({
+    name: pkg.name,
+    status: pkg.status,
+    monthlyPrice: String(pkg.monthlyPrice),
+    includedVideos: String(pkg.includedVideos),
+    consumedVideos: String(pkg.consumedVideos),
+    includedRevisions: String(pkg.includedRevisions),
+    consumedRevisions: String(pkg.consumedRevisions),
+    includedShootingDays: String(pkg.includedShootingDays),
+    consumedShootingDays: String(pkg.consumedShootingDays),
+    extraVideoPrice: String(pkg.extraVideoPrice),
+    extraRevisionPrice: String(pkg.extraRevisionPrice),
+    renewalDate: pkg.renewalDate ?? '',
+    notes: pkg.notes ?? '',
+  })
+  const set = (patch: Partial<EditPackageForm>) => setForm((f) => ({ ...f, ...patch }))
+  const numericKeys: (keyof EditPackageForm)[] = [
+    'monthlyPrice', 'includedVideos', 'consumedVideos', 'includedRevisions', 'consumedRevisions',
+    'includedShootingDays', 'consumedShootingDays', 'extraVideoPrice', 'extraRevisionPrice',
+  ]
+  const valid = form.name.trim().length > 0 && numericKeys.every((k) => isNonNegNumber(form[k]))
+
+  const numInput = (key: keyof EditPackageForm, label: string, step = '1') => (
+    <div>
+      <label className="text-[10px] text-slate-500 uppercase tracking-wide">{label}</label>
+      <input type="number" min="0" step={step} className="input py-2 text-xs mt-1"
+        value={form[key]} onChange={(e) => set({ [key]: e.target.value } as Partial<EditPackageForm>)} />
+    </div>
+  )
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+      onClick={() => { if (!saving) onClose() }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass-blue rounded-3xl p-6 w-full max-w-md max-h-[90dvh] overflow-y-auto">
+
+        <div className="flex items-center justify-between mb-5">
+          <div className="min-w-0">
+            <h2 className="text-base font-black text-white">Edit Package</h2>
+            <p className="text-[11px] text-slate-500 truncate">{pkg.clientName || '—'}</p>
+          </div>
+          <button onClick={onClose} disabled={saving} aria-label="Close"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all disabled:opacity-50">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Package Name</label>
+              <input className="input py-2 text-xs mt-1" value={form.name}
+                onChange={(e) => set({ name: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Status</label>
+              <select className="input py-2 text-xs mt-1 capitalize" value={form.status}
+                onChange={(e) => set({ status: e.target.value as PkgType['status'] })}>
+                {(['active', 'expired', 'cancelled'] as const).map((st) => (
+                  <option key={st} value={st} className="capitalize">{st}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {numInput('monthlyPrice', 'Monthly Price (USD)', '0.01')}
+
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide pt-1">Usage — used / included</p>
+          <div className="grid grid-cols-2 gap-2">
+            {numInput('consumedVideos', 'Videos used')}
+            {numInput('includedVideos', 'Videos included')}
+            {numInput('consumedRevisions', 'Revisions used')}
+            {numInput('includedRevisions', 'Revisions included')}
+            {numInput('consumedShootingDays', 'Shoot days used')}
+            {numInput('includedShootingDays', 'Shoot days included')}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {numInput('extraVideoPrice', 'Extra video price', '0.01')}
+            {numInput('extraRevisionPrice', 'Extra revision price', '0.01')}
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Renewal Date</label>
+            <input type="date" className="input py-2 text-xs mt-1" value={form.renewalDate}
+              onChange={(e) => set({ renewalDate: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Notes</label>
+            <textarea className="input py-2 text-xs mt-1 min-h-[64px]" value={form.notes}
+              onChange={(e) => set({ notes: e.target.value })} />
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-400 rounded-xl px-3 py-2"
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              {error}
+            </p>
+          )}
+
+          <button
+            className="btn-primary w-full justify-center text-xs py-2.5 disabled:opacity-50"
+            disabled={!valid || saving}
+            onClick={() => onSubmit(form)}>
+            {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </motion.div>
     </motion.div>
   )
 }
@@ -239,6 +398,10 @@ export default function PackagesPage() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
 
+  const [editing, setEditing] = useState<PkgType | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+
   useEffect(() => {
     if (!agencyId) {
       setLoading(false)
@@ -296,6 +459,48 @@ export default function PackagesPage() {
       toastError(msg)
     } finally {
       setCreating(false)
+    }
+  }
+
+  const openEdit = (pkg: PkgType) => {
+    if (!canManage) return
+    setEditError(null)
+    setEditing(pkg)
+  }
+
+  const saveEdit = async (form: EditPackageForm) => {
+    if (!editing) return
+    setSavingEdit(true)
+    setEditError(null)
+    const updates: Partial<PkgType> = {
+      name: form.name.trim(),
+      status: form.status,
+      monthlyPrice: Number(form.monthlyPrice),
+      includedVideos: Number(form.includedVideos),
+      consumedVideos: Number(form.consumedVideos),
+      includedRevisions: Number(form.includedRevisions),
+      consumedRevisions: Number(form.consumedRevisions),
+      includedShootingDays: Number(form.includedShootingDays),
+      consumedShootingDays: Number(form.consumedShootingDays),
+      extraVideoPrice: Number(form.extraVideoPrice),
+      extraRevisionPrice: Number(form.extraRevisionPrice),
+      renewalDate: form.renewalDate,
+      notes: form.notes.trim(),
+    }
+    try {
+      await packageService.update(editing.id, updates)
+      setPackages((prev) => prev.map((p) => (p.id === editing.id
+        ? { ...p, ...updates, notes: updates.notes || undefined }
+        : p)))
+      toastSuccess('Package updated.')
+      setEditing(null)
+    } catch (err) {
+      console.error('[PackagesPage] update failed', err)
+      const msg = err instanceof Error ? err.message : 'Could not update the package.'
+      setEditError(msg)
+      toastError(msg)
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -361,7 +566,7 @@ export default function PackagesPage() {
               { icon: AlertTriangle, label: 'Packages Near Limit', value: alertPackages, color: '#F59E0B' },
               { icon: Film, label: 'Total Videos Delivered', value: totalDelivered, color: '#8B5CF6' },
             ].map(({ icon: Icon, label, value, color }) => (
-              <motion.div key={label} whileHover={{ y: -2 }}
+              <div key={label}
                 className="glass-blue rounded-2xl p-5 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{ background: `${color}18` }}>
@@ -371,7 +576,7 @@ export default function PackagesPage() {
                   <div className="text-lg font-black text-white">{value}</div>
                   <div className="text-[10px] text-slate-500 leading-tight">{label}</div>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
 
@@ -392,7 +597,8 @@ export default function PackagesPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: Math.min(i * 0.08, 0.6) }}>
-                <PackageCard pkg={pkg} clientColor={clientColorById.get(pkg.clientId) ?? '#3B82F6'} />
+                <PackageCard pkg={pkg} clientColor={clientColorById.get(pkg.clientId) ?? '#3B82F6'}
+                  onEdit={canManage ? () => openEdit(pkg) : undefined} />
               </motion.div>
             ))}
 
@@ -425,6 +631,16 @@ export default function PackagesPage() {
             error={createError}
             onSubmit={createPackage}
             onClose={() => setShowCreate(false)}
+          />
+        )}
+        {editing && (
+          <EditPackageModal
+            key={editing.id}
+            pkg={editing}
+            saving={savingEdit}
+            error={editError}
+            onSubmit={saveEdit}
+            onClose={() => setEditing(null)}
           />
         )}
       </AnimatePresence>

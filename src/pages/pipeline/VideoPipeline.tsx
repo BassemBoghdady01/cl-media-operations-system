@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Film, Search, Plus, Clock, Instagram, Youtube, Linkedin, X,
@@ -116,16 +116,17 @@ const EMPTY_VIDEO_FORM: NewVideoForm = {
 }
 
 function NewVideoModal({
-  clients, members, saving, error, onSubmit, onClose,
+  clients, members, initialClientId, saving, error, onSubmit, onClose,
 }: {
   clients: Client[]
   members: ManagedUser[]
+  initialClientId?: string
   saving: boolean
   error: string | null
   onSubmit: (form: NewVideoForm) => void
   onClose: () => void
 }) {
-  const [form, setForm] = useState<NewVideoForm>(EMPTY_VIDEO_FORM)
+  const [form, setForm] = useState<NewVideoForm>({ ...EMPTY_VIDEO_FORM, clientId: initialClientId ?? '' })
   const set = (patch: Partial<NewVideoForm>) => setForm((f) => ({ ...f, ...patch }))
   const valid = form.clientId !== '' && form.title.trim().length > 0
 
@@ -247,6 +248,8 @@ export default function VideoPipeline() {
   const [pickersLoaded, setPickersLoaded] = useState(false)
   const [clientRows, setClientRows] = useState<Client[]>([])
   const [members, setMembers] = useState<ManagedUser[]>([])
+  const [createClientId, setCreateClientId] = useState<string | undefined>(undefined)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   useEffect(() => {
     if (!agencyId) {
@@ -277,6 +280,7 @@ export default function VideoPipeline() {
 
   // Drag a card onto a column to move it through the pipeline.
   const moveVideo = async (videoId: string, status: VideoStatus) => {
+    if (!canManage) return
     const target = videos.find((v) => v.id === videoId)
     if (!target || target.status === status) return
     const previous = videos
@@ -291,8 +295,9 @@ export default function VideoPipeline() {
   }
 
   // Open the new-video modal; lazily fetch client/editor pickers once.
-  const openCreate = async () => {
+  const openCreate = async (clientId?: string) => {
     setCreateError(null)
+    setCreateClientId(clientId)
     setShowCreate(true)
     if (pickersLoaded || !agencyId) return
     try {
@@ -308,6 +313,19 @@ export default function VideoPipeline() {
       toastError('Could not load clients and team members for the form.')
     }
   }
+
+  // Deep link: /app/pipeline?new=1[&client=<id>] opens the create modal.
+  useEffect(() => {
+    if (searchParams.get('new') !== '1' || !agencyId) return
+    const clientParam = searchParams.get('client') || undefined
+    const next = new URLSearchParams(searchParams)
+    next.delete('new')
+    next.delete('client')
+    setSearchParams(next, { replace: true })
+    if (canManage) void openCreate(clientParam)
+    else toastError("Your role can't create videos.")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, agencyId, canManage])
 
   const createVideo = async (form: NewVideoForm) => {
     if (creating) return
@@ -447,16 +465,16 @@ export default function VideoPipeline() {
                   {/* Column body */}
                   <div className="min-h-24 rounded-xl p-2"
                     style={{ background: `${color}06`, border: `1px solid ${color}15` }}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
+                    onDragOver={canManage ? (e) => e.preventDefault() : undefined}
+                    onDrop={canManage ? (e) => {
                       e.preventDefault()
                       const videoId = e.dataTransfer.getData('text/video-id')
                       if (videoId) void moveVideo(videoId, id)
-                    }}>
+                    } : undefined}>
                     <AnimatePresence>
                       {colVideos.map((v) => (
-                        <div key={v.id} draggable
-                          onDragStart={(e) => e.dataTransfer.setData('text/video-id', v.id)}>
+                        <div key={v.id} draggable={canManage}
+                          onDragStart={canManage ? (e) => e.dataTransfer.setData('text/video-id', v.id) : undefined}>
                           <VideoCard video={v} />
                         </div>
                       ))}
@@ -521,6 +539,7 @@ export default function VideoPipeline() {
           <NewVideoModal
             clients={clientRows}
             members={members}
+            initialClientId={createClientId}
             saving={creating}
             error={createError}
             onSubmit={createVideo}

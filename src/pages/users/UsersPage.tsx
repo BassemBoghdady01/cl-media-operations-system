@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Plus, Search, X, MoreHorizontal, Pencil, UserCog, UserX, UserCheck,
   Briefcase, FolderKanban, SlidersHorizontal, Activity, Copy, Check, ShieldAlert,
@@ -26,6 +26,7 @@ import {
   type ManagedUser, type RoleRow, type PermissionRow,
 } from '../../services/userService'
 import { clientService } from '../../services/clientService'
+import { toastError } from '../../lib/toast'
 import { projectService } from '../../services/projectService'
 import type { Client, Project } from '../../types'
 
@@ -174,6 +175,17 @@ export default function UsersPage() {
 
   const [menu, setMenu] = useState<MenuState | null>(null)
   const [modal, setModal] = useState<ModalKind | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Deep link: /app/users?invite=1 opens the invite modal (e.g. from Team).
+  useEffect(() => {
+    if (searchParams.get('invite') !== '1') return
+    const next = new URLSearchParams(searchParams)
+    next.delete('invite')
+    setSearchParams(next, { replace: true })
+    if (hasPermission('users.create')) setModal({ kind: 'invite' })
+    else toastError("Your role can't invite users.")
+  }, [searchParams, setSearchParams, hasPermission])
 
   const actorIsSuper = authRole === ROLES.SUPER_ADMIN
   const actorLevel = authRole ? ROLE_LEVEL[authRole] : Number.MAX_SAFE_INTEGER
@@ -505,7 +517,7 @@ function RowMenu({
       )}
       {can('audit.view') && (
         <Link
-          to="/app/audit"
+          to={`/app/audit?actor=${encodeURIComponent(user.id)}`}
           className="w-full flex items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
           onClick={onClose}
         >

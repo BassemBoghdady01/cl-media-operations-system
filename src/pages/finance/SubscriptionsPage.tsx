@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, X, CalendarClock, ChevronRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
@@ -86,6 +86,8 @@ export default function SubscriptionsPage() {
   const [statusFilter, setStatusFilter] = useState<SubscriptionStatus | 'all'>('all')
   const [upcomingOnly, setUpcomingOnly] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [prefillClientId, setPrefillClientId] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const load = useCallback(async () => {
     if (!agencyId) return
@@ -109,6 +111,20 @@ export default function SubscriptionsPage() {
   }, [agencyId])
 
   useEffect(() => { load() }, [load])
+
+  // Deep link: ?new=1 opens the create form, &client=<id> preselects the client.
+  // Waits for the first load so the client dropdown already has its options,
+  // then strips the params so closing the form doesn't reopen it.
+  useEffect(() => {
+    if (loading || searchParams.get('new') !== '1') return
+    if (canManage) {
+      setPrefillClientId(searchParams.get('client') ?? '')
+      setShowForm(true)
+    }
+    const next = new URLSearchParams(searchParams)
+    next.delete('new'); next.delete('client')
+    setSearchParams(next, { replace: true })
+  }, [loading, searchParams, setSearchParams, canManage])
 
   // Currencies actually present in the data — never a hardcoded list.
   const currencies = useMemo(() => {
@@ -299,8 +315,9 @@ export default function SubscriptionsPage() {
           userId={user?.id ?? ''}
           clients={clients}
           services={services}
-          onClose={() => setShowForm(false)}
-          onSaved={() => { setShowForm(false); load() }}
+          defaultClientId={prefillClientId}
+          onClose={() => { setShowForm(false); setPrefillClientId('') }}
+          onSaved={() => { setShowForm(false); setPrefillClientId(''); load() }}
         />
       )}
     </div>
@@ -451,7 +468,7 @@ function ChannelBadge({
 const FREQUENCIES: BillingFrequency[] = ['weekly', 'monthly', 'quarterly', 'semi_annual', 'annual', 'custom']
 
 export function SubscriptionFormModal({
-  agencyId, userId, clients, services, initial, onClose, onSaved,
+  agencyId, userId, clients, services, initial, defaultClientId, onClose, onSaved,
 }: {
   agencyId: string
   userId: string
@@ -459,6 +476,8 @@ export function SubscriptionFormModal({
   services: AgencyService[]
   /** When provided the modal edits this subscription instead of creating one. */
   initial?: ClientSubscription
+  /** Create mode only: preselect this client (e.g. from a ?client= deep link). */
+  defaultClientId?: string
   onClose: () => void
   onSaved: () => void
 }) {
@@ -469,7 +488,8 @@ export function SubscriptionFormModal({
   const [nbdTouched, setNbdTouched] = useState(!!initial)
 
   const [f, setF] = useState({
-    client_id: initial?.client_id ?? '',
+    client_id: initial?.client_id
+      ?? (defaultClientId && clients.some((c) => c.id === defaultClientId) ? defaultClientId : ''),
     service_id: initial?.service_id ?? '',
     name: initial?.name ?? '',
     description: initial?.description ?? '',

@@ -411,7 +411,7 @@ export default function TeamPage() {
         </div>
         {canCreateUsers && (
           // Real user creation lives in User Management (/app/users).
-          <Link to="/app/users" className="btn-primary text-sm">
+          <Link to="/app/users?invite=1" className="btn-primary text-sm">
             <Plus className="w-4 h-4" /> Invite Member
           </Link>
         )}

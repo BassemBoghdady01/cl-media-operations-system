@@ -1,7 +1,7 @@
 /**
  * Videos & review comments — production service. No seed fallback.
  */
-import { db, orThrow, dstr, type Row } from './serviceCore'
+import { db, orThrow, dstr, type Row, requireRows } from './serviceCore'
 import { normalizeRole, ROLES } from '../config/roles'
 import type { Video, Comment } from '../types'
 
@@ -85,8 +85,9 @@ export const videoService = {
   },
 
   updateStatus: async (id: string, status: Video['status']): Promise<void> => {
-    const { error } = await db().from('videos').update({ status }).eq('id', id)
+    const { data: _rows, error } = await db().from('videos').update({ status }).eq('id', id).select('id')
     orThrow('videoService.updateStatus', error)
+    requireRows('videoService.updateStatus', _rows)
   },
 
   create: async (agencyId: string, video: Partial<Video>): Promise<Video> => {
@@ -123,7 +124,9 @@ export const videoService = {
     if (updates.status !== undefined) patch.status = updates.status
     if (updates.priority !== undefined) patch.priority = updates.priority
     if (updates.dueDate !== undefined) patch.due_date = updates.dueDate || null
-    if (updates.assignedEditor !== undefined) patch.assigned_editor_id = updates.assignedEditor
+    if (updates.assignedEditor !== undefined) patch.assigned_editor_id = updates.assignedEditor || null
+    if (updates.platform !== undefined) patch.platform = updates.platform
+    if (updates.format !== undefined) patch.format = updates.format
     if (updates.approvalStatus !== undefined) patch.approval_status = updates.approvalStatus
     if (updates.revisionCount !== undefined) patch.revision_count = updates.revisionCount
     if (updates.hook !== undefined) patch.hook = updates.hook
@@ -133,11 +136,13 @@ export const videoService = {
     if (updates.cta !== undefined) patch.cta = updates.cta
     if (updates.notes !== undefined) patch.notes = updates.notes
     if (updates.scheduledDate !== undefined) patch.scheduled_at = updates.scheduledDate || null
-    if (updates.postedUrl !== undefined) patch.published_url = updates.postedUrl
-    if (updates.finalUrl !== undefined) patch.final_file_url = updates.finalUrl
+    if (updates.postedUrl !== undefined) patch.published_url = updates.postedUrl || null
+    // Final deliveries live in a PRIVATE bucket — store the storage path, open via signed URL.
+    if (updates.finalUrl !== undefined) patch.final_file_url = updates.finalUrl || null
     if (updates.thumbnailUrl !== undefined) patch.thumbnail_url = updates.thumbnailUrl
-    const { error } = await db().from('videos').update(patch).eq('id', id)
+    const { data: _rows, error } = await db().from('videos').update(patch).eq('id', id).select('id')
     orThrow('videoService.update', error)
+    requireRows('videoService.update', _rows)
   },
 
   getComments: async (videoId: string): Promise<Comment[]> => {

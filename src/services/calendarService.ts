@@ -1,7 +1,7 @@
 /**
  * Content calendar — production service. No seed fallback.
  */
-import { db, orThrow, type Row } from './serviceCore'
+import { db, orThrow, type Row, requireRows } from './serviceCore'
 
 export interface CalendarItem {
   id: string
@@ -97,12 +97,14 @@ export const calendarService = {
     if (updates.status !== undefined) patch.status = updates.status
     if (updates.publishedUrl !== undefined) patch.published_url = updates.publishedUrl
     if (updates.notes !== undefined) patch.notes = updates.notes
-    const { error } = await db().from('content_calendar').update(patch).eq('id', id)
+    const { data: _rows, error } = await db().from('content_calendar').update(patch).eq('id', id).select('id')
     orThrow('calendarService.update', error)
+    requireRows('calendarService.update', _rows)
   },
 
   delete: async (id: string): Promise<void> => {
-    const { error } = await db().from('content_calendar').delete().eq('id', id)
+    const { data: _rows, error } = await db().from('content_calendar').delete().eq('id', id).select('id')
     orThrow('calendarService.delete', error)
+    requireRows('calendarService.delete', _rows)
   },
 }

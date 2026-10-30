@@ -126,7 +126,7 @@ export default function ClientDashboard() {
             </span>
             <span className="text-xs text-blue-400 ml-2">Action required</span>
           </div>
-          <Link to="/client/videos" className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+          <Link to="/client/videos?status=client_review" className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
             Review now <ChevronRight className="w-3 h-3" />
           </Link>
         </motion.div>
@@ -152,7 +152,7 @@ export default function ClientDashboard() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Pending Review', value: forReview.length, color: '#EAB308', icon: Eye, to: '/client/videos' },
+          { label: 'Pending Review', value: forReview.length, color: '#EAB308', icon: Eye, to: '/client/videos?status=client_review' },
           { label: 'In Production', value: inProgress.length, color: '#3B82F6', icon: Clock, to: '/client/videos' },
           { label: 'Posted This Month', value: posted.length, color: '#10B981', icon: CheckCircle, to: '/client/videos' },
           { label: 'Videos Total', value: videos.length, color: '#8B5CF6', icon: Film, to: '/client/videos' },

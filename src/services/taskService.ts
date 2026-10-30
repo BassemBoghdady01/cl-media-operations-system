@@ -6,7 +6,7 @@
  * it through review_task_work. Those statuses can't be set by hand — the
  * database guard rejects it — so the UI never calls updateStatus for them.
  */
-import { db, orThrow, dstr, type Row } from './serviceCore'
+import { db, orThrow, dstr, type Row, requireRows } from './serviceCore'
 import type { Task, TaskStatus } from '../types'
 
 export const TASK_FILES_BUCKET = 'task-files'
@@ -144,8 +144,9 @@ export const taskService = {
 
   /** Only for the free statuses (todo / in_progress / waiting / blocked). */
   updateStatus: async (id: string, status: TaskStatus): Promise<void> => {
-    const { error } = await db().from('tasks').update({ status }).eq('id', id)
+    const { data: _rows, error } = await db().from('tasks').update({ status }).eq('id', id).select('id')
     orThrow('taskService.updateStatus', error)
+    requireRows('taskService.updateStatus', _rows)
   },
 
   update: async (id: string, patch: Partial<Task>): Promise<void> => {
@@ -158,13 +159,15 @@ export const taskService = {
     if (patch.dueDate !== undefined) row.due_date = patch.dueDate || null
     if (patch.clientId !== undefined) row.client_id = patch.clientId || null
     if (patch.requiresFinalApproval !== undefined) row.requires_final_approval = patch.requiresFinalApproval
-    const { error } = await db().from('tasks').update(row).eq('id', id)
+    const { data: _rows, error } = await db().from('tasks').update(row).eq('id', id).select('id')
     orThrow('taskService.update', error)
+    requireRows('taskService.update', _rows)
   },
 
   remove: async (id: string): Promise<void> => {
-    const { error } = await db().from('tasks').delete().eq('id', id)
+    const { data: _rows, error } = await db().from('tasks').delete().eq('id', id).select('id')
     orThrow('taskService.remove', error)
+    requireRows('taskService.remove', _rows)
   },
 
   create: async (agencyId: string, task: Partial<Task>): Promise<Task> => {

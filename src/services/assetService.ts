@@ -1,7 +1,9 @@
 /**
  * Asset library — production service. No seed fallback.
  */
-import { db, orThrow, dstr, type Row } from './serviceCore'
+import { db, orThrow, dstr, type Row, requireRows } from './serviceCore'
+import { storageService } from './storageService'
+import { APP_CONFIG } from '../config/app'
 import type { Asset } from '../types'
 
 function fmtSize(bytes: unknown): string | undefined {
@@ -69,7 +71,33 @@ export const assetService = {
   },
 
   delete: async (id: string): Promise<void> => {
-    const { error } = await db().from('assets').delete().eq('id', id)
+    const { data: _rows, error } = await db().from('assets').delete().eq('id', id).select('id')
     orThrow('assetService.delete', error)
+    requireRows('assetService.delete', _rows)
   },
+
+  /**
+   * Deletes the asset row, then its object in the private `client-assets`
+   * bucket. The row goes first so an RLS-blocked delete never orphans the
+   * record's file. Returns whether the stored file was also removed.
+   */
+  deleteWithFile: async (asset: Pick<Asset, 'id' | 'url'>): Promise<{ fileRemoved: boolean }> => {
+    await assetService.delete(asset.id)
+    if (!asset.url) return { fileRemoved: true }
+    try {
+      await storageService.deleteStored(APP_CONFIG.storage.clientAssets, asset.url)
+      return { fileRemoved: true }
+    } catch (err) {
+      console.error('[assetService] storage object delete failed', err)
+      return { fileRemoved: false }
+    }
+  },
+
+  /** Opens the asset's file via a 1-hour signed URL. */
+  open: (asset: Pick<Asset, 'url'>): Promise<void> =>
+    storageService.openStoredFile(APP_CONFIG.storage.clientAssets, asset.url),
+
+  /** A 1-hour signed URL for the asset's file. */
+  signedUrl: (asset: Pick<Asset, 'url'>): Promise<string> =>
+    storageService.signedUrlFor(APP_CONFIG.storage.clientAssets, asset.url),
 }

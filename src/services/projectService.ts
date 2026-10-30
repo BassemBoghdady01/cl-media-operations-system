@@ -1,7 +1,7 @@
 /**
  * Projects — production service. No seed fallback.
  */
-import { db, orThrow, dstr, type Row } from './serviceCore'
+import { db, orThrow, dstr, type Row, requireRows } from './serviceCore'
 import type { Project } from '../types'
 
 function mapProject(r: Row): Project {
@@ -67,7 +67,8 @@ export const projectService = {
     if (updates.progress !== undefined) patch.progress = updates.progress
     if (updates.dueDate !== undefined) patch.due_date = updates.dueDate || null
     if (updates.description !== undefined) patch.description = updates.description
-    const { error } = await db().from('projects').update(patch).eq('id', id)
+    const { data: _rows, error } = await db().from('projects').update(patch).eq('id', id).select('id')
     orThrow('projectService.update', error)
+    requireRows('projectService.update', _rows)
   },
 }

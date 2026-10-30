@@ -133,8 +133,8 @@ export default function FinanceOverview() {
             description="No financial records exist yet. Add your accounts and your first income or expense, and this dashboard will populate from real data."
             action={
               <div className="flex flex-wrap gap-2 justify-center">
-                <Link className="btn-primary py-2 px-4 text-xs" to="/app/finance/revenue">Add income</Link>
-                <Link className="btn-secondary py-2 px-4 text-xs" to="/app/finance/expenses">Add expense</Link>
+                <Link className="btn-primary py-2 px-4 text-xs" to="/app/finance/revenue?new=1">Add income</Link>
+                <Link className="btn-secondary py-2 px-4 text-xs" to="/app/finance/expenses?new=1">Add expense</Link>
                 <Link className="btn-secondary py-2 px-4 text-xs" to="/app/finance/settings">Finance settings</Link>
               </div>
             }

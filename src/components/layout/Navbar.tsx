@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Bell, Plus, Menu } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
@@ -103,7 +103,7 @@ export default function Navbar({ onOpenMobileNav }: { onOpenMobileNav?: () => vo
 
       {/* Quick add */}
       {hasPermission('videos.manage') && (
-        <button onClick={() => navigate('/app/pipeline')} className="btn-primary text-xs py-2 px-4 hidden sm:flex">
+        <button onClick={() => navigate('/app/pipeline?new=1')} className="btn-primary text-xs py-2 px-4 hidden sm:flex">
           <Plus className="w-3.5 h-3.5" />
           New Video
         </button>
@@ -187,11 +187,20 @@ export default function Navbar({ onOpenMobileNav }: { onOpenMobileNav?: () => vo
         </AnimatePresence>
       </div>
 
-      {/* User avatar */}
-      <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white cursor-pointer"
-        style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
-        {getInitials(user?.name ?? 'EZ')}
-      </div>
+      {/* User avatar — opens Settings for roles that can see it */}
+      {hasPermission('settings.view') ? (
+        <Link to="/app/settings" title="Settings" aria-label="Open settings"
+          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
+          style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
+          {getInitials(user?.name ?? 'EZ')}
+        </Link>
+      ) : (
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
+          title={user?.name}
+          style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)' }}>
+          {getInitials(user?.name ?? 'EZ')}
+        </div>
+      )}
     </header>
   )
 }
