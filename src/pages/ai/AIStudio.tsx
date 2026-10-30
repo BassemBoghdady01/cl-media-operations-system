@@ -491,6 +491,16 @@ const SAMPLE_INPUT: GenerationInput = {
   count: 5,
 }
 
+// The form starts blank: the example brand is loaded only when the user
+// presses "Load example" — it is never submitted or stored on its own.
+const EMPTY_INPUT: GenerationInput = {
+  ...SAMPLE_INPUT,
+  company: '',
+  description: '',
+  audience: '',
+  product: '',
+}
+
 const TOOLS = [
   { id: 'ideas', label: 'Content Ideas', icon: Lightbulb, color: '#F59E0B', desc: 'Generate platform-specific reel ideas' },
   { id: 'script', label: 'Reel Script', icon: AlignLeft, color: '#8B5CF6', desc: 'Full timecoded video script + shot list' },
@@ -528,7 +538,7 @@ export default function AIStudio() {
   const [loading, setLoading] = useState(false)
   const [generated, setGenerated] = useState<Record<ToolId, boolean>>(NOTHING_GENERATED)
   const [copied, setCopied] = useState<string | null>(null)
-  const [input, setInput] = useState<GenerationInput>(SAMPLE_INPUT)
+  const [input, setInput] = useState<GenerationInput>(EMPTY_INPUT)
 
   // Generated outputs
   const [ideas, setIdeas] = useState<ContentIdea[]>([])
@@ -682,7 +692,7 @@ export default function AIStudio() {
         <button
           onClick={() => { setInput(SAMPLE_INPUT); setGenerated(NOTHING_GENERATED) }}
           className="btn-secondary text-xs py-2 px-4">
-          <Film className="w-3.5 h-3.5" /> Load Al Naseel Example
+          <Film className="w-3.5 h-3.5" /> Load example brief
         </button>
       </div>
 
@@ -719,7 +729,7 @@ export default function AIStudio() {
 
             <div>
               <label className="text-[10px] font-medium text-slate-500 mb-1 block">Company / Brand Name *</label>
-              <input className="input text-xs py-2" placeholder="e.g. Al Naseel" value={input.company}
+              <input className="input text-xs py-2" placeholder="Client or brand name" value={input.company}
                 onChange={(e) => updateInput('company', e.target.value)} />
             </div>
 
@@ -821,7 +831,7 @@ export default function AIStudio() {
                 </div>
                 <h3 className="text-lg font-black text-white mb-2">{activeTool_?.label}</h3>
                 <p className="text-slate-500 text-sm max-w-xs">{activeTool_?.desc}</p>
-                <p className="text-slate-600 text-xs mt-4">Fill the form and click Generate — or load the Al Naseel example.</p>
+                <p className="text-slate-600 text-xs mt-4">Fill the form and click Generate — or load the example brief.</p>
               </motion.div>
             )}
 

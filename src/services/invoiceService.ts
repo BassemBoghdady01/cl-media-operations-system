@@ -3,6 +3,7 @@
  */
 import { db, orThrow, dstr, type Row, requireRows } from './serviceCore'
 import type { Invoice } from '../types'
+import { BASE_CURRENCY } from '../lib/finance'
 
 export function mapInvoice(r: Row): Invoice {
   return {
@@ -14,6 +15,7 @@ export function mapInvoice(r: Row): Invoice {
     tax: Number(r.tax ?? 0),
     discount: Number(r.discount ?? 0),
     total: Number(r.total ?? 0),
+    currency: r.currency || BASE_CURRENCY,
     status: r.status ?? 'draft',
     dueDate: dstr(r.due_date),
     issuedDate: dstr(r.issued_date),
@@ -54,6 +56,7 @@ export const invoiceService = {
         tax: invoice.tax ?? 0,
         discount: invoice.discount ?? 0,
         total: invoice.total ?? 0,
+        currency: invoice.currency || BASE_CURRENCY,
         status: invoice.status ?? 'draft',
         due_date: invoice.dueDate || null,
         issued_date: invoice.issuedDate || undefined,
@@ -71,6 +74,7 @@ export const invoiceService = {
     if (updates.tax !== undefined) patch.tax = updates.tax
     if (updates.discount !== undefined) patch.discount = updates.discount
     if (updates.total !== undefined) patch.total = updates.total
+    if (updates.currency) patch.currency = updates.currency
     if (updates.dueDate !== undefined) patch.due_date = updates.dueDate || null
     if (updates.issuedDate !== undefined) patch.issued_date = updates.issuedDate || null
     if (updates.notes !== undefined) patch.notes = updates.notes

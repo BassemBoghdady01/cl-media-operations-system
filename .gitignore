@@ -9,3 +9,6 @@ dist/
 .env
 .env.local
 .env.*.local
+
+# Local data backups (never commit)
+backups/

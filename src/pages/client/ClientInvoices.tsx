@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { invoiceService } from '../../services/invoiceService'
 import type { Invoice } from '../../types'
+import { formatMoney, sumByCurrency, formatMoneyGroups, currencyOf } from '../../lib/finance'
 import { format, parseISO } from 'date-fns'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
@@ -37,8 +38,11 @@ export default function ClientInvoices() {
       })
   }, [user])
 
-  const totalPaid = invoices.filter((i) => i.status === 'paid').reduce((s, i) => s + i.total, 0)
-  const totalPending = invoices.filter((i) => ['sent', 'overdue'].includes(i.status)).reduce((s, i) => s + i.total, 0)
+  // Per-currency totals — invoices in different currencies are never added together.
+  const paidGroups = sumByCurrency(invoices.filter((i) => i.status === 'paid'), (i) => i.total, currencyOf)
+  const pendingGroups = sumByCurrency(
+    invoices.filter((i) => ['sent', 'overdue'].includes(i.status)), (i) => i.total, currencyOf)
+  const hasPending = pendingGroups.some((g) => g.amount > 0)
 
   if (loadError) {
     return (
@@ -65,15 +69,15 @@ export default function ClientInvoices() {
         <div className="rounded-xl p-4"
           style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.12)' }}>
           <div className="text-[10px] font-semibold text-emerald-600 uppercase tracking-widest mb-1">Total Paid</div>
-          <div className="text-xl font-black text-white">${totalPaid.toLocaleString()}</div>
+          <div className="text-xl font-black text-white">{formatMoneyGroups(paidGroups)}</div>
         </div>
         <div className="rounded-xl p-4"
-          style={{ background: totalPending > 0 ? 'rgba(239,68,68,0.06)' : 'rgba(255,255,255,0.02)', border: `1px solid ${totalPending > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.05)'}` }}>
-          <div className={`text-[10px] font-semibold uppercase tracking-widest mb-1 ${totalPending > 0 ? 'text-red-500' : 'text-slate-600'}`}>
+          style={{ background: hasPending ? 'rgba(239,68,68,0.06)' : 'rgba(255,255,255,0.02)', border: `1px solid ${hasPending ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.05)'}` }}>
+          <div className={`text-[10px] font-semibold uppercase tracking-widest mb-1 ${hasPending ? 'text-red-500' : 'text-slate-600'}`}>
             Outstanding
           </div>
-          <div className={`text-xl font-black ${totalPending > 0 ? 'text-red-400' : 'text-white'}`}>
-            ${totalPending.toLocaleString()}
+          <div className={`text-xl font-black ${hasPending ? 'text-red-400' : 'text-white'}`}>
+            {formatMoneyGroups(pendingGroups)}
           </div>
         </div>
       </div>
@@ -125,7 +129,7 @@ export default function ClientInvoices() {
                 </div>
 
                 <div className="text-right flex-shrink-0">
-                  <div className="text-sm font-bold text-white">${invoice.total.toLocaleString()}</div>
+                  <div className="text-sm font-bold text-white">{formatMoney(invoice.total, currencyOf(invoice))}</div>
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                     style={{ background: status.bg, color: status.color }}>
                     {status.label}

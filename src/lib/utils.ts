@@ -1,17 +1,18 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { formatMoney } from './finance'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(amount: number, currency = 'USD') {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
+/**
+ * @deprecated Prefer `formatMoney(amount, record.currency)` from lib/finance
+ * with the record's own currency. Kept for compatibility; defaults to the
+ * agency base currency (EGP) and shows exact cents when present.
+ */
+export function formatCurrency(amount: number, currency = 'EGP') {
+  return formatMoney(amount, currency)
 }
 
 export function formatDate(dateStr: string) {

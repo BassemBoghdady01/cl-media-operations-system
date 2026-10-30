@@ -168,7 +168,11 @@ export default function Dashboard() {
   const totalVideos = videos.length || 1
 
   // ── Finance aggregates for the base currency actually present ──
-  const finCurrency = summary[0]?.currency ?? mrr[0]?.currency ?? 'EGP'
+  // EGP (the agency's base currency) leads whenever it has data; amounts in
+  // other currencies are never added into it — they are listed separately.
+  const presentCurrencies = Array.from(new Set([...summary.map((x) => x.currency), ...mrr.map((x) => x.currency)]))
+  const finCurrency = presentCurrencies.includes('EGP') || presentCurrencies.length === 0 ? 'EGP' : presentCurrencies[0]
+  const otherCurrencies = presentCurrencies.filter((c) => c !== finCurrency)
   const s = summary.find((x) => x.currency === finCurrency)
   const m = mrr.find((x) => x.currency === finCurrency)
   const outstanding = receivables
@@ -304,6 +308,11 @@ export default function Dashboard() {
           )}
 
           {/* ── Finance strip ── */}
+          {canFinance && otherCurrencies.length > 0 && (
+            <p className="text-[11px] text-slate-500 -mb-2">
+              Figures below are in {finCurrency}. This month also has activity in {otherCurrencies.join(', ')} — see Finance for those totals (currencies are never mixed).
+            </p>
+          )}
           {canFinance && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {canRevenue && (

@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { packageService } from '../../services/packageService'
 import type { Package as PackageType } from '../../types'
+import { formatMoney, currencyOf } from '../../lib/finance'
 import { format, parseISO, differenceInDays } from 'date-fns'
 
 function UsageBar({ consumed, included, label, color }: {
@@ -107,7 +108,7 @@ export default function ClientPackage() {
           <div>
             <div className="text-lg font-black text-white">{pkg.name}</div>
             <div className="text-sm text-blue-300 mt-0.5 font-semibold">
-              ${pkg.monthlyPrice.toLocaleString()} / month
+              {formatMoney(pkg.monthlyPrice, currencyOf(pkg))} / month
             </div>
           </div>
           <span className="px-3 py-1 rounded-full text-xs font-bold text-emerald-400 bg-emerald-400/10">
@@ -167,13 +168,13 @@ export default function ClientPackage() {
         <div className="rounded-xl p-4"
           style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
           <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Extra Video</div>
-          <div className="text-base font-bold text-white">${pkg.extraVideoPrice}</div>
+          <div className="text-base font-bold text-white">{formatMoney(pkg.extraVideoPrice, currencyOf(pkg))}</div>
           <div className="text-[10px] text-slate-600">per additional video</div>
         </div>
         <div className="rounded-xl p-4"
           style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
           <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Extra Revision</div>
-          <div className="text-base font-bold text-white">${pkg.extraRevisionPrice}</div>
+          <div className="text-base font-bold text-white">{formatMoney(pkg.extraRevisionPrice, currencyOf(pkg))}</div>
           <div className="text-[10px] text-slate-600">per additional revision</div>
         </div>
       </div>

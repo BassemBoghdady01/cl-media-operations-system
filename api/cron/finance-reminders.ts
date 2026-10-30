@@ -5,11 +5,15 @@
  * schedule so nothing depends on someone opening the website.
  *
  * SECURITY
- *   • Requires CRON_SECRET, supplied either as `Authorization: Bearer <secret>`
- *     (Vercel Cron sends this automatically) or `?secret=` for manual runs.
+ *   • Requires CRON_SECRET as `Authorization: Bearer <secret>` (Vercel Cron
+ *     sends this automatically). A `?secret=` query string is NOT accepted:
+ *     URLs end up in request logs. Compared in constant time.
  *   • Uses SUPABASE_SERVICE_ROLE_KEY — SERVER SIDE ONLY. This file lives under
  *     /api and is never bundled into the browser. The key must NOT be prefixed
  *     with VITE_.
+ *
+ * KILL SWITCH: without BILLING_CRON_ENABLED=true the endpoint only verifies
+ * authorization and configuration and returns { mode: 'safe-check' }.
  *
  * IDEMPOTENT: every generator is safe to run repeatedly. Cycles are unique per
  * (subscription, period_start) and reminders per dedupe_key, so a double run
@@ -26,6 +30,14 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { createHash, timingSafeEqual } from 'node:crypto'
+
+/** Constant-time string comparison (hash first so lengths always match). */
+function safeEqual(a: string, b: string): boolean {
+  const ha = createHash('sha256').update(a).digest()
+  const hb = createHash('sha256').update(b).digest()
+  return timingSafeEqual(new Uint8Array(ha), new Uint8Array(hb))
+}
 
 interface VercelRequest {
   method?: string
@@ -57,14 +69,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const authHeader = String(req.headers.authorization ?? '')
   const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
-  const querySecret = typeof req.query.secret === 'string' ? req.query.secret : ''
-
-  if (bearer !== secret && querySecret !== secret) {
+  if (!bearer || !safeEqual(bearer, secret)) {
     return unauthorized(res, 'bad or missing secret')
   }
 
+  // ── Kill switch ──
+  // Real billing (cycles, ledger rows, reminders, notifications) runs ONLY
+  // when BILLING_CRON_ENABLED is exactly "true". Otherwise an authorized call
+  // is a safe, non-financial check: it proves the secret and the server key
+  // are configured and touches nothing.
   const url = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (process.env.BILLING_CRON_ENABLED !== 'true') {
+    return res.status(200).json({
+      mode: 'safe-check',
+      authorized: true,
+      serverKeyConfigured: Boolean(url && serviceKey),
+      billing: 'disabled — set BILLING_CRON_ENABLED=true to run billing',
+      checkedAt: new Date().toISOString(),
+    })
+  }
 
   if (!url || !serviceKey) {
     console.error('[cron/finance-reminders] missing Supabase server credentials')
@@ -188,7 +212,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const r of due ?? []) {
       const { data: cycle } = await supabase
         .from('subscription_cycles')
-        .select('amount, currency, due_date, clients(name)')
+        .select('amount, currency, due_date, period_start, clients(name)')
         .eq('id', r.billing_cycle_id)
         .maybeSingle()
 
@@ -197,12 +221,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const amount = cycle?.amount ?? 0
       const currency = cycle?.currency ?? 'EGP'
 
+      // The billing period is part of the title: notifyUsers() de-duplicates
+      // by title per day, so two overdue months must not collapse into one.
+      const period = cycle?.period_start
+        ? new Date(`${cycle.period_start}T00:00:00Z`).toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' })
+        : ''
+      const suffix = period ? ` (${period})` : ''
       const title =
         r.type === 'overdue'
-          ? `Payment overdue — ${clientName}`
+          ? `Payment overdue — ${clientName}${suffix}`
           : r.type === 'due_today'
-            ? `Payment due today — ${clientName}`
-            : `Upcoming payment — ${clientName}`
+            ? `Payment due today — ${clientName}${suffix}`
+            : `Upcoming payment — ${clientName}${suffix}`
 
       const recipients = await financeUsers(r.agency_id)
       const ok = await notifyUsers(
@@ -228,7 +258,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     result.errors.push(`dispatch: ${msg}`)
   }
 
-  // ── 4. Flag subscriptions that carry an overdue cycle ──
+  // ── 4. Keep subscription status in step with its cycles ──
+  //    active → overdue while any cycle is overdue; overdue → active once
+  //    none are. (The generator bills both, so an overdue flag never stops
+  //    future cycles — see migration 020.)
   try {
     const { data: overdueCycles } = await supabase
       .from('subscription_cycles')
@@ -242,6 +275,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .in('id', ids)
         .eq('status', 'active')
     }
+    let reset = supabase.from('client_subscriptions').update({ status: 'active' }).eq('status', 'overdue')
+    if (ids.length) reset = reset.not('id', 'in', `(${ids.join(',')})`)
+    await reset
   } catch (err) {
     result.errors.push(`overdue_subs: ${err instanceof Error ? err.message : String(err)}`)
   }

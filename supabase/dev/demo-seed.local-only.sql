@@ -1,3 +1,15 @@
+-- ============================================================================
+-- LOCAL DEVELOPMENT ONLY — demo agency, clients and packages.
+-- NEVER run against production. This file refuses to run on any database
+-- that already has a user profile (i.e. any real/production project).
+-- ============================================================================
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.profiles) OR EXISTS (SELECT 1 FROM auth.users) THEN
+    RAISE EXCEPTION 'demo-seed refused: this database has real users. Demo data is for an empty local database only.';
+  END IF;
+END $$;
+
 -- ============================================================
 -- EZ Marketing Agency — Seed Data for Supabase
 -- Run AFTER schema.sql + rls-policies.sql + storage.sql

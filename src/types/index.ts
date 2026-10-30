@@ -132,6 +132,8 @@ export interface Package {
   clientName: string
   name: string
   monthlyPrice: number
+  /** ISO code from packages.currency. Always set by mapPackage; optional only so legacy dev fixtures still type-check. */
+  currency?: string
   includedVideos: number
   consumedVideos: number
   includedRevisions: number
@@ -156,6 +158,8 @@ export interface Invoice {
   tax: number
   discount: number
   total: number
+  /** ISO code from invoices.currency. Always set by mapInvoice; optional only so legacy dev fixtures still type-check. */
+  currency?: string
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
   dueDate: string
   issuedDate: string
@@ -231,6 +235,7 @@ export interface Booking {
     | 'rescheduled'
   shotList?: string[]
   notes?: string
+  /** bookings has no currency column — deposits are shown in the agency base currency (EGP). */
   depositAmount?: number
   depositPaid: boolean
 }

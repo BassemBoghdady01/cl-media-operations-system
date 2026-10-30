@@ -22,6 +22,10 @@ export interface Partner {
   email: string | null
   phone: string | null
   share_percent: number
+  /** Optional exact ownership units (e.g. 1 : 2 = exactly ⅓ : ⅔). When every
+   *  active partner at one level has units, units decide the split and the
+   *  database keeps share_percent in sync as a display value. */
+  share_units?: number | null
   joined_on: string | null
   status: 'active' | 'exited'
   notes: string | null
@@ -115,7 +119,11 @@ export const TX_DIRECTION: Record<PartnerTxType, 'in' | 'out' | 'none'> = {
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v))
 
 function mapPartner(r: Row): Partner {
-  return { ...(r as Partner), share_percent: num(r.share_percent) }
+  return {
+    ...(r as Partner),
+    share_percent: num(r.share_percent),
+    share_units: r.share_units === null || r.share_units === undefined ? null : Number(r.share_units),
+  }
 }
 
 export const partnerService = {
@@ -140,6 +148,9 @@ export const partnerService = {
       joined_on: p.joined_on || null,
       status: p.status ?? 'active',
       notes: p.notes || null,
+      ...(p.share_units !== undefined
+        ? { share_units: p.share_units === null || !(Number(p.share_units) > 0) ? null : Number(p.share_units) }
+        : {}),
     }
     const q = p.id
       ? db().from('partners').update(row).eq('id', p.id)

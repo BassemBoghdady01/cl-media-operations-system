@@ -166,6 +166,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         password,
         email_confirm: true,
         user_metadata: { full_name: fullName },
+        // Service-role only: tells handle_new_user (migration 021) to create
+        // the profile inside this agency instead of a new, empty workspace.
+        app_metadata: { agency_id: actor.agencyId },
       })
       if (createErr || !created.user) {
         return fail(res, 400, createErr?.message ?? 'Could not create the auth user.')
