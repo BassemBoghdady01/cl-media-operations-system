@@ -22,8 +22,16 @@ const supabase = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY,
   auth: { persistSession: false },
 })
 
-const QA_EMAIL = 'qa-functional-audit@ezmarketing.agency'
-const QA_PASS = 'QA-audit-2026!x'
+// Never point this at production: it signs up a test identity. Run it only
+// against a throwaway/staging Supabase project and pass credentials via env.
+const PRODUCTION_REF = 'ytgpailppajqrgtfcunz'
+if (String(env.VITE_SUPABASE_URL).includes(PRODUCTION_REF) || process.env.QA_ALLOW !== 'staging') {
+  console.error('qa-flows refused: set QA_ALLOW=staging and point .env at a NON-production Supabase project.')
+  process.exit(2)
+}
+const QA_EMAIL = process.env.QA_EMAIL ?? 'qa-functional-audit@example.test'
+const QA_PASS = process.env.QA_PASSWORD
+if (!QA_PASS) { console.error('Set QA_PASSWORD in the environment.'); process.exit(2) }
 
 const results = []
 let step = 0

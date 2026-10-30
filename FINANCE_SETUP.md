@@ -14,7 +14,7 @@ Run the migrations in the exact order listed in `PRODUCTION_MIGRATION.md`
 UPDATE profiles SET role = 'super_admin' WHERE email = 'you@ezmarketing.agency';
 ```
 
-Do **not** run `supabase/seed.sql` in production.
+Do **not** run `supabase/dev/demo-seed.local-only.sql` in production.
 
 ## 2. Environment (Vercel → Settings → Environment Variables)
 
@@ -89,7 +89,7 @@ a reason and is audit-logged.
 ## 9. Verify automation
 
 ```bash
-curl -s "https://YOUR-DOMAIN/api/cron/finance-reminders?secret=$CRON_SECRET" | jq
+curl -s -H "Authorization: Bearer $CRON_SECRET" "https://YOUR-DOMAIN/api/cron/finance-reminders" | jq
 ```
 
 Expect HTTP 200 with counters (`cyclesCreated`, `remindersCreated`,

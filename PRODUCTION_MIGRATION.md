@@ -25,8 +25,11 @@ Take a database backup first (Supabase → Database → Backups) regardless.
 | 13 | `supabase/migrations/013_partner_advance_offsets.sql` | Advance drawings are recovered (non-cash `advance_offset`) before a distribution is paid in cash; row locks on approve/pay/cancel. |
 | 14 | `supabase/migrations/014_client_video_review.sql` | `client_review_video()` RPC: portal clients approve / request revision on their own videos in client_review. |
 | 15 | `supabase/migrations/015_task_audit.sql` | Audit-log triggers on tasks, task_submissions, task_reviews. |
+| 16 | `supabase/migrations/016_last_super_admin_guard.sql` | The last active Super Admin can never be demoted or deactivated (database-level). |
+| 17 | `supabase/migrations/017_exact_partner_allocation.sql` | Optional exact ownership units; largest-remainder profit allocation (lines always sum exactly); 1-cent paid-status fix. Regression test: `tests/db/partners_allocation.test.sql`. |
+| 18 | `supabase/migrations/018_egp_default_currency.sql` | packages/invoices currency default USD → EGP (default only; no rows changed). |
 
-> **Do NOT run `supabase/seed.sql` in production.** It inserts sample
+> **Do NOT run `supabase/dev/demo-seed.local-only.sql` in production.** It inserts sample
 > operational data for local development only. Production starts empty and
 > every figure comes from data you enter.
 
@@ -88,7 +91,7 @@ openssl rand -hex 32
 
 `vercel.json` registers `/api/cron/finance-reminders` at `0 6 * * *` (06:00 UTC).
 Vercel Cron is available on Pro and above; on Hobby, call the URL from any
-external scheduler with `?secret=<CRON_SECRET>`.
+external scheduler sending `Authorization: Bearer <CRON_SECRET>`.
 
 **Timezone:** Vercel Cron and Postgres `CURRENT_DATE` both run in UTC. The
 business operates in Egypt (UTC+2/+3), so 06:00 UTC = 08:00–09:00 in Cairo —
@@ -105,7 +108,7 @@ of it is idempotent via unique keys and same-day dedupe checks.
 Manual test after deploy:
 
 ```bash
-curl -s "https://YOUR-DOMAIN/api/cron/finance-reminders?secret=YOUR_CRON_SECRET" | jq
+curl -s -H "Authorization: Bearer YOUR_CRON_SECRET" "https://YOUR-DOMAIN/api/cron/finance-reminders" | jq
 ```
 
 Expected: `200` with counters. `401` means the secret is wrong or missing.

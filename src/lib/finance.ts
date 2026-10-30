@@ -9,21 +9,102 @@
 export const SUPPORTED_CURRENCIES = ['EGP', 'USD', 'EUR', 'SAR', 'AED'] as const
 export type CurrencyCode = (typeof SUPPORTED_CURRENCIES)[number]
 
+/**
+ * Agency reporting currency (agency_finance_settings.base_currency).
+ * Used only as the default for NEW records and for record types that have no
+ * currency column at all (e.g. booking deposits). Never used to relabel a
+ * record that carries its own currency.
+ */
+export const BASE_CURRENCY: CurrencyCode = 'EGP'
+
 const LOCALE = 'en-EG'
 
-export function formatMoney(amount: number | null | undefined, currency = 'EGP'): string {
-  const value = Number(amount ?? 0)
+/** Round to cents so float noise (0.1 + 0.2) never leaks into the UI. */
+function roundCents(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+export function formatMoney(
+  amount: number | null | undefined,
+  currency: string = BASE_CURRENCY,
+  opts: { display?: 'symbol' | 'code' } = {},
+): string {
+  const value = roundCents(Number(amount ?? 0) || 0)
+  const code = currency || BASE_CURRENCY
+  const digits = value % 1 === 0 ? 0 : 2
   try {
     return new Intl.NumberFormat(LOCALE, {
       style: 'currency',
-      currency,
-      maximumFractionDigits: value % 1 === 0 ? 0 : 2,
-      minimumFractionDigits: 0,
+      currency: code,
+      currencyDisplay: opts.display ?? 'symbol',
+      maximumFractionDigits: digits,
+      minimumFractionDigits: digits,
     }).format(value)
   } catch {
     // Unknown currency code — fall back to a plain number plus the code.
-    return `${value.toLocaleString(LOCALE)} ${currency}`
+    return `${code} ${value.toLocaleString(LOCALE, { maximumFractionDigits: digits, minimumFractionDigits: digits })}`
   }
+}
+
+/** The currency a record is stored in. Falls back to the base currency only when the record has none. */
+export function currencyOf(record: { currency?: string | null } | null | undefined): string {
+  return record?.currency || BASE_CURRENCY
+}
+
+/** One currency's share of an aggregate. */
+export interface MoneyGroup {
+  currency: string
+  amount: number
+  count: number
+}
+
+/**
+ * Sum amounts per currency. Amounts of different currencies are NEVER added
+ * together. Groups are ordered base currency first, then by code.
+ * `fallbackCurrency` applies only to items whose currency is empty — pass it
+ * only for record types that genuinely have no currency column.
+ */
+export function sumByCurrency<T>(
+  items: readonly T[],
+  getAmount: (item: T) => number | null | undefined,
+  getCurrency: (item: T) => string | null | undefined,
+  fallbackCurrency: string = BASE_CURRENCY,
+): MoneyGroup[] {
+  const map = new Map<string, MoneyGroup>()
+  for (const item of items) {
+    const currency = (getCurrency(item) || fallbackCurrency).toUpperCase()
+    const amount = Number(getAmount(item) ?? 0) || 0
+    const g = map.get(currency) ?? { currency, amount: 0, count: 0 }
+    g.amount = roundCents(g.amount + amount)
+    g.count += 1
+    map.set(currency, g)
+  }
+  return [...map.values()].sort((a, b) =>
+    a.currency === BASE_CURRENCY ? -1 : b.currency === BASE_CURRENCY ? 1 : a.currency.localeCompare(b.currency))
+}
+
+/**
+ * "EGP 10,000" or "EGP 10,000 · USD 200". Uses currency codes (not symbols)
+ * so mixed totals are unambiguous. An empty list renders as zero in
+ * `emptyCurrency` (the base currency by default).
+ */
+export function formatMoneyGroups(
+  groups: readonly MoneyGroup[],
+  emptyCurrency: string = BASE_CURRENCY,
+  separator = ' · ',
+): string {
+  if (!groups.length) return formatMoney(0, emptyCurrency, { display: 'code' })
+  return groups.map((g) => formatMoney(g.amount, g.currency, { display: 'code' })).join(separator)
+}
+
+/** Convenience: sumByCurrency + formatMoneyGroups in one call. */
+export function formatMoneyTotal<T>(
+  items: readonly T[],
+  getAmount: (item: T) => number | null | undefined,
+  getCurrency: (item: T) => string | null | undefined,
+  fallbackCurrency: string = BASE_CURRENCY,
+): string {
+  return formatMoneyGroups(sumByCurrency(items, getAmount, getCurrency, fallbackCurrency), fallbackCurrency)
 }
 
 /** Compact form for KPI tiles: 1.2M, 340K. */

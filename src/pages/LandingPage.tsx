@@ -657,7 +657,7 @@ export default function LandingPage() {
                 View Client Portal
               </Link>
             </div>
-            <p className="text-xs text-slate-600 mt-5">No credit card required · Setup in 5 minutes · Demo data included</p>
+            <p className="text-xs text-slate-600 mt-5">No credit card required · Setup in 5 minutes · Starts empty — your real data only</p>
           </motion.div>
         </div>
       </section>

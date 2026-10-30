@@ -2,14 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Camera, Plus, Calendar, Clock, MapPin, Users, CheckCircle,
-  ChevronLeft, ChevronRight, X, Check, DollarSign, FileText, Phone, Mail, MessageCircle,
+  ChevronLeft, ChevronRight, X, Check, Banknote, FileText, Phone, Mail, MessageCircle,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
 import { bookingService } from '../../services/bookingService'
 import { clientService } from '../../services/clientService'
 import { userService, type ManagedUser } from '../../services/userService'
-import { getInitials, formatCurrency } from '../../lib/utils'
+import { getInitials } from '../../lib/utils'
+import { formatMoney, BASE_CURRENCY } from '../../lib/finance'
 import { toastSuccess, toastError } from '../../lib/toast'
 import type { Booking, Client } from '../../types'
 
@@ -112,8 +113,9 @@ function BookingCard({ booking, team, onClick }: { booking: Booking; team: TeamL
         {booking.depositAmount != null && booking.depositAmount > 0 && (
           <div className="flex items-center gap-1.5 text-[11px]"
             style={{ color: booking.depositPaid ? '#34D399' : '#FBBF24' }}>
-            <DollarSign className="w-3 h-3" />
-            <span>{formatCurrency(booking.depositAmount)} deposit {booking.depositPaid ? '✓' : 'pending'}</span>
+            <Banknote className="w-3 h-3" />
+            <span>{/* bookings has no currency column — deposits are in the agency base currency. */}
+            {formatMoney(booking.depositAmount, BASE_CURRENCY)} deposit {booking.depositPaid ? '✓' : 'pending'}</span>
           </div>
         )}
       </div>
@@ -241,9 +243,9 @@ function BookingDetailModal({
           <div className="flex items-center justify-between p-3 rounded-xl mb-5"
             style={{ background: booking.depositPaid ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)' }}>
             <div className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4" style={{ color: booking.depositPaid ? '#34D399' : '#FBBF24' }} />
+              <Banknote className="w-4 h-4" style={{ color: booking.depositPaid ? '#34D399' : '#FBBF24' }} />
               <span className="text-xs" style={{ color: booking.depositPaid ? '#34D399' : '#FBBF24' }}>
-                Deposit: {formatCurrency(booking.depositAmount)}
+                Deposit: {formatMoney(booking.depositAmount, BASE_CURRENCY)}
               </span>
             </div>
             <span className="text-[10px] font-bold" style={{ color: booking.depositPaid ? '#34D399' : '#FBBF24' }}>

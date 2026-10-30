@@ -63,7 +63,7 @@ OPENAI_API_KEY=sk-...           # AI Studio
 ## Database Setup
 
 1. Base schema: `supabase/schema.sql` → `rls-policies.sql` → `storage.sql`
-   (`seed.sql` is for local development only — **never production**).
+   (`dev/demo-seed.local-only.sql` is for local development only — **never production**).
 2. Migrations, in the exact order in **`PRODUCTION_MIGRATION.md`**:
    `fix_auth_profile_bootstrap` → `002_roles_permissions` →
    `003_finance_core` → `004_subscriptions_recurring` → `005_payroll` →
@@ -79,7 +79,7 @@ OPENAI_API_KEY=sk-...           # AI Studio
 Build `npm run build`, output `dist`, framework Vite. Set the env vars above,
 then verify the daily cron (`/api/cron/finance-reminders`, 06:00 UTC — see
 `vercel.json`) with
-`curl "https://YOUR-DOMAIN/api/cron/finance-reminders?secret=$CRON_SECRET"`.
+`curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR-DOMAIN/api/cron/finance-reminders"`.
 
 ---
 
@@ -108,7 +108,7 @@ api/
 └── cron/finance-reminders.ts  # Daily billing/reminder/notification job
 
 supabase/
-├── schema.sql · rls-policies.sql · storage.sql · seed.sql (dev only)
+├── schema.sql · rls-policies.sql · storage.sql · dev/demo-seed.local-only.sql (dev only, self-guarded)
 └── migrations/          # 002–009 + auth bootstrap fix (run in order)
 ```
 

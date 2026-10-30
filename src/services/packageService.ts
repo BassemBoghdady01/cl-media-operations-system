@@ -3,6 +3,7 @@
  */
 import { db, orThrow, dstr, type Row, requireRows } from './serviceCore'
 import type { Package } from '../types'
+import { BASE_CURRENCY } from '../lib/finance'
 
 export function mapPackage(r: Row): Package {
   return {
@@ -11,6 +12,7 @@ export function mapPackage(r: Row): Package {
     clientName: r.clients?.name ?? '',
     name: r.name ?? '',
     monthlyPrice: Number(r.monthly_price ?? 0),
+    currency: r.currency || BASE_CURRENCY,
     includedVideos: Number(r.included_videos ?? 0),
     consumedVideos: Number(r.consumed_videos ?? 0),
     includedRevisions: Number(r.included_revisions ?? 0),
@@ -55,6 +57,7 @@ export const packageService = {
         client_id: pkg.clientId,
         name: pkg.name,
         monthly_price: pkg.monthlyPrice ?? 0,
+        currency: pkg.currency || BASE_CURRENCY,
         included_videos: pkg.includedVideos ?? 0,
         included_revisions: pkg.includedRevisions ?? 0,
         included_shooting_days: pkg.includedShootingDays ?? 0,
@@ -74,6 +77,7 @@ export const packageService = {
     const patch: Row = {}
     if (updates.name !== undefined) patch.name = updates.name
     if (updates.monthlyPrice !== undefined) patch.monthly_price = updates.monthlyPrice
+    if (updates.currency) patch.currency = updates.currency
     if (updates.includedVideos !== undefined) patch.included_videos = updates.includedVideos
     if (updates.consumedVideos !== undefined) patch.consumed_videos = updates.consumedVideos
     if (updates.includedRevisions !== undefined) patch.included_revisions = updates.includedRevisions

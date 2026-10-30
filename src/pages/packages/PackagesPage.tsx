@@ -6,7 +6,8 @@ import PageErrorState from '../../components/system/PageErrorState'
 import { packageService } from '../../services/packageService'
 import { clientService } from '../../services/clientService'
 import { toastSuccess, toastError } from '../../lib/toast'
-import { formatCurrency, formatDate, getInitials } from '../../lib/utils'
+import { formatDate, getInitials } from '../../lib/utils'
+import { formatMoney, formatMoneyTotal, currencyOf, BASE_CURRENCY, SUPPORTED_CURRENCIES } from '../../lib/finance'
 import type { Client, Package as PkgType } from '../../types'
 
 function UsageBar({ label, used, total, color }: { label: string; used: number; total: number; color: string }) {
@@ -66,7 +67,7 @@ function PackageCard({ pkg, clientColor, onEdit }: { pkg: PkgType; clientColor: 
           </div>
         </div>
         <div className="text-right">
-          <div className="text-base font-black text-white">{formatCurrency(pkg.monthlyPrice)}</div>
+          <div className="text-base font-black text-white">{formatMoney(pkg.monthlyPrice, currencyOf(pkg))}</div>
           <div className="text-[10px] text-slate-500">/month</div>
         </div>
       </div>
@@ -107,7 +108,7 @@ function PackageCard({ pkg, clientColor, onEdit }: { pkg: PkgType; clientColor: 
         style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
         <span>{pkg.renewalDate ? `Renews ${formatDate(pkg.renewalDate)}` : 'No renewal date set'}</span>
         <div className="flex items-center gap-3">
-          <span>+{formatCurrency(pkg.extraVideoPrice)}/extra video</span>
+          <span>+{formatMoney(pkg.extraVideoPrice, currencyOf(pkg))}/extra video</span>
           {onEdit && (
             <span className="inline-flex items-center gap-1 text-blue-400 font-semibold">
               <Pencil className="w-3 h-3" /> Edit
@@ -123,6 +124,7 @@ interface EditPackageForm {
   name: string
   status: PkgType['status']
   monthlyPrice: string
+  currency: string
   includedVideos: string
   consumedVideos: string
   includedRevisions: string
@@ -150,6 +152,7 @@ function EditPackageModal({
     name: pkg.name,
     status: pkg.status,
     monthlyPrice: String(pkg.monthlyPrice),
+    currency: currencyOf(pkg),
     includedVideos: String(pkg.includedVideos),
     consumedVideos: String(pkg.consumedVideos),
     includedRevisions: String(pkg.includedRevisions),
@@ -219,7 +222,20 @@ function EditPackageModal({
               </select>
             </div>
           </div>
-          {numInput('monthlyPrice', 'Monthly Price (USD)', '0.01')}
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            {numInput('monthlyPrice', `Monthly Price (${form.currency})`, '0.01')}
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Currency</label>
+              <select className="input py-2 text-xs mt-1" value={form.currency}
+                onChange={(e) => set({ currency: e.target.value })}>
+                {/* Keep a stored code that is not in the supported list selectable. */}
+                {!(SUPPORTED_CURRENCIES as readonly string[]).includes(form.currency) && (
+                  <option value={form.currency}>{form.currency}</option>
+                )}
+                {SUPPORTED_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
 
           <p className="text-[10px] text-slate-500 uppercase tracking-wide pt-1">Usage — used / included</p>
           <div className="grid grid-cols-2 gap-2">
@@ -232,8 +248,8 @@ function EditPackageModal({
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            {numInput('extraVideoPrice', 'Extra video price', '0.01')}
-            {numInput('extraRevisionPrice', 'Extra revision price', '0.01')}
+            {numInput('extraVideoPrice', `Extra video price (${form.currency})`, '0.01')}
+            {numInput('extraRevisionPrice', `Extra revision price (${form.currency})`, '0.01')}
           </div>
           <div>
             <label className="text-[10px] text-slate-500 uppercase tracking-wide">Renewal Date</label>
@@ -269,6 +285,7 @@ interface NewPackageForm {
   clientId: string
   name: string
   monthlyPrice: string
+  currency: string
   includedVideos: string
   includedRevisions: string
   includedShootingDays: string
@@ -277,7 +294,7 @@ interface NewPackageForm {
 }
 
 const EMPTY_FORM: NewPackageForm = {
-  clientId: '', name: '', monthlyPrice: '', includedVideos: '',
+  clientId: '', name: '', monthlyPrice: '', currency: BASE_CURRENCY, includedVideos: '',
   includedRevisions: '', includedShootingDays: '', renewalDate: '', notes: '',
 }
 
@@ -331,10 +348,19 @@ function NewPackageModal({
             <input className="input py-2 text-xs mt-1" placeholder="e.g. Growth — 8 videos/month"
               value={form.name} onChange={(e) => set({ name: e.target.value })} />
           </div>
-          <div>
-            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Monthly Price (USD)</label>
-            <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
-              value={form.monthlyPrice} onChange={(e) => set({ monthlyPrice: e.target.value })} />
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Monthly Price ({form.currency})</label>
+              <input type="number" min="0" step="0.01" className="input py-2 text-xs mt-1" placeholder="0"
+                value={form.monthlyPrice} onChange={(e) => set({ monthlyPrice: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Currency</label>
+              <select className="input py-2 text-xs mt-1" value={form.currency}
+                onChange={(e) => set({ currency: e.target.value })}>
+                {SUPPORTED_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
@@ -443,6 +469,7 @@ export default function PackagesPage() {
         clientId: form.clientId,
         name: form.name.trim(),
         monthlyPrice: Number(form.monthlyPrice) || 0,
+        currency: form.currency || BASE_CURRENCY,
         includedVideos: Number(form.includedVideos) || 0,
         includedRevisions: Number(form.includedRevisions) || 0,
         includedShootingDays: Number(form.includedShootingDays) || 0,
@@ -476,6 +503,7 @@ export default function PackagesPage() {
       name: form.name.trim(),
       status: form.status,
       monthlyPrice: Number(form.monthlyPrice),
+      currency: form.currency || currencyOf(editing),
       includedVideos: Number(form.includedVideos),
       consumedVideos: Number(form.consumedVideos),
       includedRevisions: Number(form.includedRevisions),
@@ -511,7 +539,8 @@ export default function PackagesPage() {
   }, [clients])
 
   const activePackages = packages.filter((p) => p.status === 'active')
-  const totalMRR = activePackages.reduce((s, p) => s + p.monthlyPrice, 0)
+  // Grouped per currency — EGP and USD packages are never added together.
+  const totalMRR = formatMoneyTotal(activePackages, (p) => p.monthlyPrice, currencyOf)
   const alertPackages = packages.filter((p) => {
     const pct = p.includedVideos > 0 ? (p.consumedVideos / p.includedVideos) : 0
     return pct >= 0.85
@@ -561,7 +590,7 @@ export default function PackagesPage() {
           {/* KPI row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {[
-              { icon: TrendingUp, label: 'Monthly Recurring Revenue', value: formatCurrency(totalMRR), color: '#10B981' },
+              { icon: TrendingUp, label: 'Monthly Recurring Revenue', value: totalMRR, color: '#10B981' },
               { icon: Package, label: 'Active Packages', value: activePackages.length, color: '#3B82F6' },
               { icon: AlertTriangle, label: 'Packages Near Limit', value: alertPackages, color: '#F59E0B' },
               { icon: Film, label: 'Total Videos Delivered', value: totalDelivered, color: '#8B5CF6' },

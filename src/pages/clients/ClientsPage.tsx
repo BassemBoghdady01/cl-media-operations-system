@@ -7,7 +7,8 @@ import PageErrorState from '../../components/system/PageErrorState'
 import { clientService } from '../../services/clientService'
 import { packageService } from '../../services/packageService'
 import { videoService } from '../../services/videoService'
-import { statusColors, getInitials, formatCurrency } from '../../lib/utils'
+import { statusColors, getInitials } from '../../lib/utils'
+import { formatMoneyTotal, currencyOf } from '../../lib/finance'
 import { toastSuccess, toastError } from '../../lib/toast'
 import type { Client, Package, Video } from '../../types'
 
@@ -89,7 +90,8 @@ export default function ClientsPage() {
 
   const activeCount = clients.filter((c) => c.status === 'active').length
   const activePackages = packages.filter((p) => p.status === 'active')
-  const totalRevenue = activePackages.reduce((s, p) => s + p.monthlyPrice, 0)
+  // Grouped per package currency — e.g. "EGP 45,000 · USD 200", never one mixed sum.
+  const totalRevenue = formatMoneyTotal(activePackages, (p) => p.monthlyPrice, currencyOf)
 
   const now = new Date()
   const videosThisMonth = videos.filter((v) => {
@@ -134,7 +136,7 @@ export default function ClientsPage() {
         {[
           { label: 'Active Clients', value: activeCount, icon: Users, color: '#3B82F6' },
           { label: 'Total Videos This Month', value: videosThisMonth, icon: Film, color: '#8B5CF6' },
-          { label: 'Monthly Revenue', value: formatCurrency(totalRevenue), icon: TrendingUp, color: '#10B981' },
+          { label: 'Monthly Revenue', value: totalRevenue, icon: TrendingUp, color: '#10B981' },
           { label: 'Active Packages', value: activePackages.length, icon: PackageIcon, color: '#F59E0B' },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="glass-blue rounded-xl p-4 flex items-center gap-3">

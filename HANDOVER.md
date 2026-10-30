@@ -100,7 +100,7 @@ plus operational and production roles down to `viewer` and `client`
    - `supabase/schema.sql`
    - `supabase/rls-policies.sql`
    - `supabase/storage.sql`
-   - `supabase/seed.sql` (**local development only — never in production**)
+   - `supabase/dev/demo-seed.local-only.sql` (**local development only — never in production**)
 3. Run the migrations in `supabase/migrations/` in the exact order given in
    `PRODUCTION_MIGRATION.md` (bootstrap fix → 002 → … → 009)
 4. Promote the first Super Admin (SQL one-liner in `PRODUCTION_MIGRATION.md`)
@@ -235,7 +235,7 @@ The application contains **no demo runtime data**. Every page loads real
 Supabase rows, failures show an honest error state, and empty tables render
 empty states — never fabricated activity. The old fixtures were moved to
 `src/dev/fixtures/` for reference and are imported by nothing in production
-(`supabase/seed.sql` likewise is for local development only).
+(`supabase/dev/demo-seed.local-only.sql` likewise is for local development only).
 
 ---
 

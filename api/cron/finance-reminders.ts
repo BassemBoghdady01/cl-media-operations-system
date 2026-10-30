@@ -5,8 +5,9 @@
  * schedule so nothing depends on someone opening the website.
  *
  * SECURITY
- *   • Requires CRON_SECRET, supplied either as `Authorization: Bearer <secret>`
- *     (Vercel Cron sends this automatically) or `?secret=` for manual runs.
+ *   • Requires CRON_SECRET as `Authorization: Bearer <secret>` (Vercel Cron
+ *     sends this automatically). A `?secret=` query string is NOT accepted:
+ *     URLs end up in request logs. Compared in constant time.
  *   • Uses SUPABASE_SERVICE_ROLE_KEY — SERVER SIDE ONLY. This file lives under
  *     /api and is never bundled into the browser. The key must NOT be prefixed
  *     with VITE_.
@@ -26,6 +27,14 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { createHash, timingSafeEqual } from 'node:crypto'
+
+/** Constant-time string comparison (hash first so lengths always match). */
+function safeEqual(a: string, b: string): boolean {
+  const ha = createHash('sha256').update(a).digest()
+  const hb = createHash('sha256').update(b).digest()
+  return timingSafeEqual(ha, hb)
+}
 
 interface VercelRequest {
   method?: string
@@ -57,9 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const authHeader = String(req.headers.authorization ?? '')
   const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
-  const querySecret = typeof req.query.secret === 'string' ? req.query.secret : ''
-
-  if (bearer !== secret && querySecret !== secret) {
+  if (!bearer || !safeEqual(bearer, secret)) {
     return unauthorized(res, 'bad or missing secret')
   }
 

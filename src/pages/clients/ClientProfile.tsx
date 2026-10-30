@@ -18,8 +18,8 @@ import { bookingService } from '../../services/bookingService'
 import { subscriptionService, type ClientSubscription } from '../../services/subscriptionService'
 import { financeService, type FinanceTransaction } from '../../services/financeService'
 import { userService, type ManagedUser } from '../../services/userService'
-import { statusColors, formatCurrency, formatDate, getInitials } from '../../lib/utils'
-import { formatMoney, formatDateShort } from '../../lib/finance'
+import { statusColors, formatDate, getInitials } from '../../lib/utils'
+import { formatMoney, formatDateShort, currencyOf, BASE_CURRENCY, SUPPORTED_CURRENCIES } from '../../lib/finance'
 import { toastSuccess, toastError } from '../../lib/toast'
 import { ClientFormModal } from './ClientsPage'
 import type { Client, Video, Package, Invoice, Asset, Project, Task, Booking } from '../../types'
@@ -329,7 +329,7 @@ export default function ClientProfile() {
             <div className="text-[11px] text-slate-500">Posted</div>
           </div>
           <div className="text-center">
-            <div className="text-xl font-black text-white">{pkg ? formatCurrency(pkg.monthlyPrice) : '—'}</div>
+            <div className="text-xl font-black text-white">{pkg ? formatMoney(pkg.monthlyPrice, currencyOf(pkg)) : '—'}</div>
             <div className="text-[11px] text-slate-500">Monthly Package</div>
           </div>
           <div className="text-center">
@@ -412,7 +412,7 @@ export default function ClientProfile() {
                 </div>
                 <div className="flex items-center justify-between text-xs text-slate-500">
                   <span>Renews {pkg.renewalDate ? formatDate(pkg.renewalDate) : '—'}</span>
-                  <span>{formatCurrency(pkg.monthlyPrice)}/month</span>
+                  <span>{formatMoney(pkg.monthlyPrice, currencyOf(pkg))}/month</span>
                 </div>
               </div>
             )}
@@ -585,7 +585,7 @@ export default function ClientProfile() {
               </div>
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span>Renews {pkg.renewalDate ? formatDate(pkg.renewalDate) : '—'}</span>
-                <span>{formatCurrency(pkg.monthlyPrice)}/month</span>
+                <span>{formatMoney(pkg.monthlyPrice, currencyOf(pkg))}/month</span>
               </div>
             </div>
           ) : (
@@ -605,7 +605,7 @@ export default function ClientProfile() {
                   <p className="text-xs text-slate-500">Issued {formatDate(inv.issuedDate)} · Due {formatDate(inv.dueDate)}</p>
                 </div>
                 <div className="flex-1" />
-                <span className="text-sm font-black text-white">{formatCurrency(inv.total)}</span>
+                <span className="text-sm font-black text-white">{formatMoney(inv.total, currencyOf(inv))}</span>
                 <span className="badge" style={{ background: sc?.bg, color: sc?.text }}>{inv.status}</span>
               </div>
             )
@@ -888,6 +888,7 @@ function QuickCreateModal({
   const [name, setName] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [amount, setAmount] = useState('')
+  const [currency, setCurrency] = useState<string>(BASE_CURRENCY)
   const [priority, setPriority] = useState('medium')
   const [includedVideos, setIncludedVideos] = useState('8')
   const [invoiceNumber, setInvoiceNumber] = useState(
@@ -926,7 +927,7 @@ function QuickCreateModal({
         await invoiceService.create(agencyId, {
           clientId: client.id,
           invoiceNumber: invoiceNumber.trim(),
-          amount: value, total: value, status: 'sent',
+          amount: value, total: value, currency, status: 'sent',
           dueDate: dueDate || undefined,
           notes: name.trim() || undefined,
         })
@@ -937,6 +938,7 @@ function QuickCreateModal({
         await packageService.create(agencyId, {
           clientId: client.id, name: name.trim(),
           monthlyPrice: price,
+          currency,
           includedVideos: Number(includedVideos) || 0,
           renewalDate: dueDate || undefined,
           status: 'active',
@@ -969,7 +971,7 @@ function QuickCreateModal({
                   onChange={(e) => setInvoiceNumber(e.target.value)} />
               </div>
               <div>
-                <label className="text-[11px] text-slate-400 block mb-1">Amount</label>
+                <label className="text-[11px] text-slate-400 block mb-1">Amount ({currency})</label>
                 <input className="input text-xs py-2" type="number" min="0" step="0.01" value={amount}
                   onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
               </div>
@@ -992,7 +994,7 @@ function QuickCreateModal({
           {kind === 'package' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] text-slate-400 block mb-1">Monthly price *</label>
+                <label className="text-[11px] text-slate-400 block mb-1">Monthly price ({currency}) *</label>
                 <input className="input text-xs py-2" type="number" min="0" step="0.01" value={amount}
                   onChange={(e) => setAmount(e.target.value)} />
               </div>
@@ -1001,6 +1003,15 @@ function QuickCreateModal({
                 <input className="input text-xs py-2" type="number" min="0" value={includedVideos}
                   onChange={(e) => setIncludedVideos(e.target.value)} />
               </div>
+            </div>
+          )}
+
+          {(kind === 'invoice' || kind === 'package') && (
+            <div>
+              <label className="text-[11px] text-slate-400 block mb-1">Currency</label>
+              <select className="input text-xs py-2" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                {SUPPORTED_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
           )}
 

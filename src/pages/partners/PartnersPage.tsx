@@ -82,6 +82,7 @@ function PartnerForm({ initial, groups, users, onSave, onClose }: {
   const set = (p: Partial<Partner>) => setF((x) => ({ ...x, ...p }))
   const isMember = f.kind === 'individual' && !!f.parent_id
   const valid = !!f.name?.trim() && Number(f.share_percent) >= 0 && Number(f.share_percent) <= 100
+    && (f.share_units === null || f.share_units === undefined || Number(f.share_units) > 0)
 
   return (
     <Modal title={initial.id ? 'Edit partner' : f.kind === 'group' ? 'New partner group' : 'New partner'} onClose={onClose}>
@@ -108,9 +109,15 @@ function PartnerForm({ initial, groups, users, onSave, onClose }: {
           </Field>
         )}
         <Field label={isMember ? 'Share of the group (%)' : 'Share of the company (%)'}
-          hint={isMember ? 'E.g. 3 equal members → 33.33 each.' : 'All direct shares must add up to 100.'}>
-          <input type="number" step="0.01" min={0} max={100} className="input py-2 text-xs"
+          hint={f.share_units ? 'Set automatically from the ownership units.' : isMember ? 'All members of the group must add up to exactly 100.' : 'All direct shares must add up to exactly 100.'}>
+          <input type="number" step="0.0001" min={0} max={100} className="input py-2 text-xs disabled:opacity-60"
+            disabled={!!f.share_units}
             value={f.share_percent ?? 0} onChange={(e) => set({ share_percent: Number(e.target.value) })} />
+        </Field>
+        <Field label="Ownership units (optional — exact fractions)"
+          hint="Use units when shares are fractions like ⅓. E.g. you 1 and Capital 2 = exactly ⅓ and ⅔; three equal members 1 each. Give every partner at the same level units, or none.">
+          <input type="number" step="any" min={0} className="input py-2 text-xs" placeholder="—"
+            value={f.share_units ?? ''} onChange={(e) => set({ share_units: e.target.value === '' ? null : Number(e.target.value) })} />
         </Field>
         {f.kind === 'individual' && (
           <Field label="Linked login (optional)" hint="Lets this partner sign in and see their own statement.">
@@ -146,28 +153,32 @@ function QuickSetup({ defaultName, onDone, onClose, agencyId }: {
   defaultName: string; onDone: () => void; onClose: () => void; agencyId: string
 }) {
   const [me, setMe] = useState(defaultName)
-  const [myShare, setMyShare] = useState(33.33)
+  // Ownership is entered as UNITS so fractions are exact: 1 : 2 is exactly
+  // ⅓ : ⅔ (33.33% is not). Members split the group equally (1 unit each).
+  const [myUnits, setMyUnits] = useState<number>(1)
+  const [groupUnits, setGroupUnits] = useState<number>(2)
   const [group, setGroup] = useState('Capital')
   const [members, setMembers] = useState(['', '', ''])
   const [saving, setSaving] = useState(false)
-  const groupShare = Number((100 - myShare).toFixed(2))
+  const totalUnits = (myUnits > 0 ? myUnits : 0) + (groupUnits > 0 ? groupUnits : 0)
+  const myShare = totalUnits ? (100 * myUnits) / totalUnits : 0
+  const groupShare = totalUnits ? (100 * groupUnits) / totalUnits : 0
   const named = members.map((m) => m.trim()).filter(Boolean)
-  const each = named.length ? Number((100 / named.length).toFixed(4)) : 0
+  const each = named.length ? 100 / named.length : 0
 
   const save = async () => {
     setSaving(true)
     try {
-      await partnerService.savePartner(agencyId, { kind: 'individual', name: me, share_percent: myShare })
-      await partnerService.savePartner(agencyId, { kind: 'group', name: group, share_percent: groupShare })
+      await partnerService.savePartner(agencyId, { kind: 'individual', name: me, share_percent: Number(myShare.toFixed(4)), share_units: myUnits })
+      await partnerService.savePartner(agencyId, { kind: 'group', name: group, share_percent: Number(groupShare.toFixed(4)), share_units: groupUnits })
       const all = await partnerService.listPartners(agencyId)
       const g = all.find((p) => p.kind === 'group' && p.name === group.trim())
       if (g) {
-        // Equal split; the last member absorbs rounding so the group totals 100.
-        let used = 0
+        // Equal split, exact: one unit each (the database derives the %).
         for (let i = 0; i < named.length; i++) {
-          const share = i === named.length - 1 ? Number((100 - used).toFixed(4)) : each
-          used += share
-          await partnerService.savePartner(agencyId, { kind: 'individual', name: named[i], parent_id: g.id, share_percent: share })
+          await partnerService.savePartner(agencyId, {
+            kind: 'individual', name: named[i], parent_id: g.id, share_percent: Number(each.toFixed(4)), share_units: 1,
+          })
         }
       }
       toastSuccess('Ownership saved.')
@@ -182,12 +193,12 @@ function QuickSetup({ defaultName, onDone, onClose, agencyId }: {
   return (
     <Modal title="Set up ownership" onClose={onClose}>
       <div className="space-y-3">
-        <p className="text-xs text-slate-400">You own a direct share; the rest belongs to a group whose members split it.</p>
+        <p className="text-xs text-slate-400">You own a direct share; the rest belongs to a group whose members split it equally. Shares are entered as units so fractions are exact (1 and 2 = exactly ⅓ and ⅔). Nothing is saved until you press Save.</p>
         <div className="grid grid-cols-3 gap-2">
           <div className="col-span-2"><Field label="Your name"><input className="input py-2 text-xs" value={me} onChange={(e) => setMe(e.target.value)} /></Field></div>
-          <Field label="Your share %"><input type="number" step="0.01" className="input py-2 text-xs" value={myShare} onChange={(e) => setMyShare(Number(e.target.value))} /></Field>
+          <Field label={`Your units · ${pct(myShare)}`}><input type="number" step="any" min={0} className="input py-2 text-xs" value={myUnits} onChange={(e) => setMyUnits(Number(e.target.value))} /></Field>
           <div className="col-span-2"><Field label="Group name"><input className="input py-2 text-xs" value={group} onChange={(e) => setGroup(e.target.value)} /></Field></div>
-          <Field label="Group share %"><input className="input py-2 text-xs opacity-70" value={groupShare} readOnly /></Field>
+          <Field label={`Group units · ${pct(groupShare)}`}><input type="number" step="any" min={0} className="input py-2 text-xs" value={groupUnits} onChange={(e) => setGroupUnits(Number(e.target.value))} /></Field>
         </div>
         <Field label={`Members of ${group || 'the group'} (equal split)`}>
           <div className="space-y-2">
@@ -204,7 +215,7 @@ function QuickSetup({ defaultName, onDone, onClose, agencyId }: {
           </div>
         </Field>
         <button className="btn-primary w-full justify-center text-xs py-2.5"
-          disabled={saving || !me.trim() || !group.trim() || named.length === 0 || myShare <= 0 || myShare >= 100}
+          disabled={saving || !me.trim() || !group.trim() || named.length === 0 || !(myUnits > 0) || !(groupUnits > 0)}
           onClick={() => void save()}>
           {saving ? 'Saving…' : 'Save ownership'}
         </button>

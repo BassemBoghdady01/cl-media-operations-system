@@ -9,7 +9,8 @@ import PageErrorState from '../../components/system/PageErrorState'
 import { invoiceService } from '../../services/invoiceService'
 import { clientService } from '../../services/clientService'
 import { toastSuccess, toastError } from '../../lib/toast'
-import { formatCurrency, formatDate, getInitials } from '../../lib/utils'
+import { formatDate, getInitials } from '../../lib/utils'
+import { formatMoney, formatMoneyTotal, currencyOf, BASE_CURRENCY, SUPPORTED_CURRENCIES } from '../../lib/finance'
 import type { Client, Invoice } from '../../types'
 
 const statusConfig: Record<string, { label: string; icon: any; bg: string; text: string }> = {
@@ -59,10 +60,10 @@ function InvoiceRow({
       </div>
 
       {/* Amount */}
-      <div className="text-right w-24 flex-shrink-0">
-        <p className="text-sm font-black text-white">{formatCurrency(invoice.total)}</p>
+      <div className="text-right w-32 flex-shrink-0">
+        <p className="text-sm font-black text-white whitespace-nowrap">{formatMoney(invoice.total, currencyOf(invoice))}</p>
         {invoice.discount > 0 && (
-          <p className="text-[10px] text-green-400">-{formatCurrency(invoice.discount)} disc.</p>
+          <p className="text-[10px] text-green-400">-{formatMoney(invoice.discount, currencyOf(invoice))} disc.</p>
         )}
       </div>
 
@@ -113,6 +114,7 @@ function InvoiceRow({
 interface NewInvoiceForm {
   clientId: string
   invoiceNumber: string
+  currency: string
   amount: string
   tax: string
   discount: string
@@ -133,7 +135,7 @@ function NewInvoiceModal({
   onClose: () => void
 }) {
   const [form, setForm] = useState<NewInvoiceForm>({
-    clientId: '', invoiceNumber: suggestedNumber, amount: '', tax: '',
+    clientId: '', invoiceNumber: suggestedNumber, currency: BASE_CURRENCY, amount: '', tax: '',
     discount: '', total: '', dueDate: '', status: 'draft', notes: '',
   })
   const [totalEdited, setTotalEdited] = useState(false)
@@ -146,7 +148,7 @@ function NewInvoiceModal({
       const next = { ...f, ...patch }
       if (!totalEdited) {
         const auto = (Number(next.amount) || 0) + (Number(next.tax) || 0) - (Number(next.discount) || 0)
-        next.total = String(auto)
+        next.total = String(Math.round(auto * 100) / 100)
       }
       return next
     })
@@ -187,31 +189,40 @@ function NewInvoiceModal({
               {clients.map((c) => <option key={c.id} value={c.id}>{c.brandName || c.name}</option>)}
             </select>
           </div>
-          <div>
-            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Invoice Number</label>
-            <input className="input py-2 text-xs mt-1" placeholder="INV-202608-001"
-              value={form.invoiceNumber} onChange={(e) => set({ invoiceNumber: e.target.value })} />
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Invoice Number</label>
+              <input className="input py-2 text-xs mt-1" placeholder="INV-202608-001"
+                value={form.invoiceNumber} onChange={(e) => set({ invoiceNumber: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Currency</label>
+              <select className="input py-2 text-xs mt-1" value={form.currency}
+                onChange={(e) => set({ currency: e.target.value })}>
+                {SUPPORTED_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
-              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Amount (USD)</label>
-              <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
+              <label className="text-[10px] text-slate-500 uppercase tracking-wide">Amount ({form.currency})</label>
+              <input type="number" min="0" step="0.01" className="input py-2 text-xs mt-1" placeholder="0"
                 value={form.amount} onChange={(e) => setMoney({ amount: e.target.value })} />
             </div>
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide">Tax</label>
-              <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
+              <input type="number" min="0" step="0.01" className="input py-2 text-xs mt-1" placeholder="0"
                 value={form.tax} onChange={(e) => setMoney({ tax: e.target.value })} />
             </div>
             <div>
               <label className="text-[10px] text-slate-500 uppercase tracking-wide">Discount</label>
-              <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
+              <input type="number" min="0" step="0.01" className="input py-2 text-xs mt-1" placeholder="0"
                 value={form.discount} onChange={(e) => setMoney({ discount: e.target.value })} />
             </div>
           </div>
           <div>
-            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Total (auto = amount + tax − discount)</label>
-            <input type="number" min="0" step="1" className="input py-2 text-xs mt-1" placeholder="0"
+            <label className="text-[10px] text-slate-500 uppercase tracking-wide">Total in {form.currency} (auto = amount + tax − discount)</label>
+            <input type="number" min="0" step="0.01" className="input py-2 text-xs mt-1" placeholder="0"
               value={form.total}
               onChange={(e) => { setTotalEdited(true); set({ total: e.target.value }) }} />
           </div>
@@ -368,6 +379,7 @@ export default function BillingPage() {
       await invoiceService.create(agencyId, {
         clientId: form.clientId,
         invoiceNumber: form.invoiceNumber.trim(),
+        currency: form.currency || BASE_CURRENCY,
         amount: Number(form.amount) || 0,
         tax: Number(form.tax) || 0,
         discount: Number(form.discount) || 0,
@@ -393,9 +405,12 @@ export default function BillingPage() {
   const paidInvoices = invoices.filter((i) => i.status === 'paid')
   const sentInvoices = invoices.filter((i) => i.status === 'sent')
   const overdueInvoices = invoices.filter((i) => i.status === 'overdue')
-  const totalPaid = paidInvoices.reduce((s, i) => s + i.total, 0)
-  const totalPending = sentInvoices.reduce((s, i) => s + i.total, 0)
-  const totalOverdue = overdueInvoices.reduce((s, i) => s + i.total, 0)
+  // Every aggregate is grouped per currency — never EGP + USD in one figure.
+  const sumTotals = (rows: Invoice[]) => formatMoneyTotal(rows, (i) => i.total, currencyOf)
+  const totalPaid = sumTotals(paidInvoices)
+  const totalPending = sumTotals(sentInvoices)
+  const totalOverdue = sumTotals(overdueInvoices)
+  const totalInvoiced = sumTotals(invoices)
 
   const filtered = invoices.filter((inv) => {
     const matchSearch = inv.clientName.toLowerCase().includes(search.toLowerCase()) ||
@@ -449,10 +464,10 @@ export default function BillingPage() {
           {/* KPI row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {[
-              { icon: CheckCircle, label: 'Collected', value: formatCurrency(totalPaid), color: '#10B981', sub: `${paidInvoices.length} invoices` },
-              { icon: Clock, label: 'Pending Payment', value: formatCurrency(totalPending), color: '#3B82F6', sub: `${sentInvoices.length} outstanding` },
-              { icon: AlertTriangle, label: 'Overdue', value: formatCurrency(totalOverdue), color: '#EF4444', sub: `${overdueInvoices.length} invoices` },
-              { icon: TrendingUp, label: 'Total Invoiced', value: formatCurrency(invoices.reduce((s, i) => s + i.total, 0)), color: '#8B5CF6', sub: 'All time' },
+              { icon: CheckCircle, label: 'Collected', value: totalPaid, color: '#10B981', sub: `${paidInvoices.length} invoices` },
+              { icon: Clock, label: 'Pending Payment', value: totalPending, color: '#3B82F6', sub: `${sentInvoices.length} outstanding` },
+              { icon: AlertTriangle, label: 'Overdue', value: totalOverdue, color: '#EF4444', sub: `${overdueInvoices.length} invoices` },
+              { icon: TrendingUp, label: 'Total Invoiced', value: totalInvoiced, color: '#8B5CF6', sub: 'All time' },
             ].map(({ icon: Icon, label, value, color, sub }) => (
               <motion.div key={label} whileHover={{ y: -2 }}
                 className="glass-blue rounded-2xl p-5 relative overflow-hidden">
@@ -477,7 +492,7 @@ export default function BillingPage() {
               <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
               <span className="text-red-300">
                 <strong>{overdueInvoices.length} invoice{overdueInvoices.length !== 1 ? 's' : ''} overdue</strong>
-                {' '}totaling {formatCurrency(totalOverdue)} — {overdueInvoices.map((i) => i.invoiceNumber).join(', ')}.
+                {' '}totaling {totalOverdue} — {overdueInvoices.map((i) => i.invoiceNumber).join(', ')}.
               </span>
             </motion.div>
           )}
@@ -507,7 +522,7 @@ export default function BillingPage() {
               style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide w-36">Invoice #</span>
               <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide flex-1">Client</span>
-              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide w-24 text-right">Amount</span>
+              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide w-32 text-right">Amount</span>
               <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide w-24 hidden md:block">Due Date</span>
               <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide w-24">Status</span>
               <span className="w-24 text-[10px] font-bold text-slate-600 uppercase tracking-wide text-right">{canManage ? 'Actions' : ''}</span>

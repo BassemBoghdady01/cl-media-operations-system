@@ -11,7 +11,7 @@ import { motion } from 'framer-motion'
 import { Wallet, CalendarClock, CheckCircle, AlertCircle, Clock, Package as PackageIcon } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PageErrorState from '../../components/system/PageErrorState'
-import { formatMoney, formatDateShort } from '../../lib/finance'
+import { formatMoney, formatDateShort, currencyOf } from '../../lib/finance'
 import { packageService } from '../../services/packageService'
 import { invoiceService } from '../../services/invoiceService'
 import {
@@ -173,7 +173,7 @@ export default function ClientFinance() {
                 </div>
               </div>
               <div className="text-sm font-bold text-white flex-shrink-0">
-                {formatMoney(pkg.monthlyPrice)} <span className="text-[10px] text-slate-500 font-medium">/ month</span>
+                {formatMoney(pkg.monthlyPrice, currencyOf(pkg))} <span className="text-[10px] text-slate-500 font-medium">/ month</span>
               </div>
             </div>
           )}
@@ -251,7 +251,7 @@ export default function ClientFinance() {
                         {inv.dueDate && ` · due ${formatDateShort(inv.dueDate)}`}
                       </div>
                     </div>
-                    <div className="text-xs font-bold text-white">{formatMoney(inv.total)}</div>
+                    <div className="text-xs font-bold text-white">{formatMoney(inv.total, currencyOf(inv))}</div>
                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize"
                       style={{
                         color: inv.status === 'paid' ? '#10B981' : inv.status === 'overdue' ? '#EF4444' : '#38BDF8',

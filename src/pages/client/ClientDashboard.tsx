@@ -12,7 +12,8 @@ import { packageService } from '../../services/packageService'
 import { invoiceService } from '../../services/invoiceService'
 import { bookingService } from '../../services/bookingService'
 import type { Video, Package as PackageType, Invoice, Booking } from '../../types'
-import { formatCurrency, formatDate, timeAgo, getInitials } from '../../lib/utils'
+import { formatDate, timeAgo, getInitials } from '../../lib/utils'
+import { formatMoney, currencyOf } from '../../lib/finance'
 
 const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   client_review:  { label: 'Awaiting Your Review', color: '#EAB308', bg: 'rgba(234,179,8,0.12)' },
@@ -296,7 +297,7 @@ export default function ClientDashboard() {
                   <div className="text-[10px] text-slate-600">{formatDate(inv.issuedDate)}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs font-bold text-white">{formatCurrency(inv.total)}</div>
+                  <div className="text-xs font-bold text-white">{formatMoney(inv.total, currencyOf(inv))}</div>
                   <span className={`text-[9px] font-bold ${
                     inv.status === 'paid' ? 'text-emerald-400' :
                     inv.status === 'overdue' ? 'text-red-400' : 'text-blue-400'

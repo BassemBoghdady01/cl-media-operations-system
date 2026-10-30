@@ -5,7 +5,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import {
-  DollarSign, Film, Users, CheckCircle, BarChart3,
+  Banknote, Film, Users, CheckCircle, BarChart3,
   ArrowUpRight, ArrowDownRight,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
@@ -14,7 +14,8 @@ import { videoService } from '../../services/videoService'
 import { clientService } from '../../services/clientService'
 import { taskService } from '../../services/taskService'
 import { packageService } from '../../services/packageService'
-import { formatCurrency, getInitials, platformColors, platformLabels, statusColors } from '../../lib/utils'
+import { getInitials, platformColors, platformLabels, statusColors } from '../../lib/utils'
+import { formatMoneyTotal, formatMoneyGroups, sumByCurrency, currencyOf, BASE_CURRENCY } from '../../lib/finance'
 import type { Client, Package, Task, Video } from '../../types'
 
 const ranges = ['Last 7 days', 'Last 30 days', 'Last 3 months', 'Last 6 months', 'This year'] as const
@@ -151,7 +152,8 @@ export default function AnalyticsPage() {
 
   // ── KPIs (all computed from real rows; empty data → zeros / em-dash) ────────
   const activePackages = packages.filter((p) => p.status === 'active')
-  const totalMRR = activePackages.reduce((s, p) => s + p.monthlyPrice, 0)
+  // Grouped per package currency — never one mixed EGP + USD figure.
+  const totalMRR = formatMoneyTotal(activePackages, (p) => p.monthlyPrice, currencyOf)
   const postedVideos = rangeVideos.filter((v) => v.status === 'posted').length
   const reviewedVideos = rangeVideos.filter((v) => v.approvalStatus !== 'pending')
   const approvalRate = reviewedVideos.length > 0
@@ -248,17 +250,37 @@ export default function AnalyticsPage() {
   }, [rangeTasks])
 
   // ── Top clients: monthly package revenue + video output ─────────────────────
+  // Revenue is grouped per currency (no FX conversion). Clients are ranked by
+  // their primary currency group (base currency first), and each revenue bar
+  // is scaled only against clients billed in that same currency.
   const clientRevenue = useMemo(() => {
-    return clients
-      .map((c) => ({
-        name: c.brandName || c.name,
-        color: c.color,
-        revenue: activePackages.filter((p) => p.clientId === c.id).reduce((s, p) => s + p.monthlyPrice, 0),
-        videos: rangeVideos.filter((v) => v.clientId === c.id).length,
-      }))
-      .filter((c) => c.revenue > 0 || c.videos > 0)
-      .sort((a, b) => b.revenue - a.revenue || b.videos - a.videos)
+    const rows = clients
+      .map((c) => {
+        const groups = sumByCurrency(
+          activePackages.filter((p) => p.clientId === c.id), (p) => p.monthlyPrice, currencyOf)
+        const primary = groups[0]
+        return {
+          name: c.brandName || c.name,
+          color: c.color,
+          groups,
+          revenueLabel: formatMoneyGroups(groups),
+          primaryCurrency: primary?.currency ?? BASE_CURRENCY,
+          primaryAmount: primary?.amount ?? 0,
+          videos: rangeVideos.filter((v) => v.clientId === c.id).length,
+        }
+      })
+      .filter((c) => c.primaryAmount > 0 || c.videos > 0)
+    const rank = (cur: string) => (cur === BASE_CURRENCY ? '' : cur)
+    const maxByCurrency = new Map<string, number>()
+    rows.forEach((r) => maxByCurrency.set(r.primaryCurrency,
+      Math.max(maxByCurrency.get(r.primaryCurrency) ?? 0, r.primaryAmount)))
+    return rows
+      .sort((a, b) =>
+        (b.primaryAmount > 0 ? 1 : 0) - (a.primaryAmount > 0 ? 1 : 0) ||
+        rank(a.primaryCurrency).localeCompare(rank(b.primaryCurrency)) ||
+        b.primaryAmount - a.primaryAmount || b.videos - a.videos)
       .slice(0, 5)
+      .map((r) => ({ ...r, pct: (r.primaryAmount / Math.max(maxByCurrency.get(r.primaryCurrency) ?? 0, 1)) * 100 }))
   }, [clients, activePackages, rangeVideos])
 
   // ── Status breakdown from real videos ───────────────────────────────────────
@@ -318,7 +340,7 @@ export default function AnalyticsPage() {
         <>
           {/* KPI row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <KPICard icon={DollarSign} label="Monthly Recurring Revenue" value={formatCurrency(totalMRR)} color="#10B981" />
+            <KPICard icon={Banknote} label="Monthly Recurring Revenue" value={totalMRR} color="#10B981" />
             <KPICard icon={Film} label="Videos Posted" value={postedVideos} color="#3B82F6" />
             <KPICard icon={CheckCircle} label="Approval Rate" value={approvalRate ?? '—'} suffix={approvalRate !== null ? '%' : ''} color="#8B5CF6" />
             <KPICard icon={Users} label="Active Clients" value={activeClients} color="#F59E0B" />
@@ -452,8 +474,7 @@ export default function AnalyticsPage() {
               {clientRevenue.length > 0 ? (
                 <div className="space-y-0">
                   {clientRevenue.map((c, i) => {
-                    const maxRev = Math.max(...clientRevenue.map((x) => x.revenue), 1)
-                    const pct = (c.revenue / maxRev) * 100
+                    const pct = c.pct
                     return (
                       <motion.div
                         key={c.name}
@@ -470,7 +491,7 @@ export default function AnalyticsPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1.5">
                             <span className="text-sm font-semibold text-white truncate">{c.name}</span>
-                            <span className="text-sm font-black text-white">{formatCurrency(c.revenue)}<span className="text-[10px] text-slate-500 font-normal">/mo</span></span>
+                            <span className="text-sm font-black text-white">{c.revenueLabel}<span className="text-[10px] text-slate-500 font-normal">/mo</span></span>
                           </div>
                           <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
                             <motion.div

@@ -10,7 +10,7 @@ This folder contains all SQL files needed to set up the EZ Marketing Agency — 
 1. schema.sql       — Creates all tables, indexes, and triggers
 2. rls-policies.sql — Enables RLS and creates security policies
 3. storage.sql      — Creates storage buckets and access policies
-4. seed.sql         — (Optional) Inserts sample data for initial setup
+4. dev/demo-seed.local-only.sql — demo data for an EMPTY local database only (refuses to run on any project with users)
 ```
 
 ---
@@ -31,7 +31,7 @@ Go to **Supabase Dashboard → SQL Editor** and run each file in order:
 -- Paste contents of schema.sql and run
 -- Paste contents of rls-policies.sql and run
 -- Paste contents of storage.sql and run
--- Paste contents of seed.sql and run (optional)
+-- Paste contents of dev/demo-seed.local-only.sql and run (optional)
 ```
 
 ### 3. Create Auth Users
