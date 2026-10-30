@@ -174,6 +174,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Safety: prevent duplicate subscription in React StrictMode double-invoke
   const subscribedRef = useRef(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** True once a session has been resolved at least once (skip re-resolving on token refresh). */
+  const resolvedOnceRef = useRef(false)
   const lastSessionRef = useRef<Session | null>(null)
 
   const applyResolved = useCallback((r: Resolved) => {
@@ -454,20 +456,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // which is what restores the session after a refresh.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+    } = supabase.auth.onAuthStateChange((event, newSession) => {
       dbg('onAuthStateChange', { event, userId: newSession?.user?.id })
 
       lastSessionRef.current = newSession
       setSession(newSession)
 
       // TOKEN_REFRESHED carries no profile change — don't re-query on every refresh.
-      if (event === 'TOKEN_REFRESHED' && user) {
+      if (event === 'TOKEN_REFRESHED' && resolvedOnceRef.current) {
         if (timeoutRef.current) clearTimeout(timeoutRef.current)
         return
       }
 
-      await resolveAndApply(newSession)
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      // IMPORTANT: never await Supabase calls inside this callback. supabase-js
+      // holds its auth lock while the callback runs; a query made here waits
+      // for that same lock (e.g. when the stored token has expired and is being
+      // refreshed on page load) and the page deadlocks until the 10 s timeout —
+      // the intermittent "Timed out while loading your workspace". Deferring to
+      // the next tick releases the lock first (Supabase's documented pattern).
+      setTimeout(() => {
+        void resolveAndApply(newSession).finally(() => {
+          resolvedOnceRef.current = true
+          if (timeoutRef.current) clearTimeout(timeoutRef.current)
+        })
+      }, 0)
     })
 
     return () => {
